@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>Elevator Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Header -->
+<header>
+    <h1>Elevator Simulator</h1>
+</header>
+
+<!-- Menu-bar -->
+<nav class="menu-bar">
+    <button onclick="selectAlgorithm('baseline')">Baseline</button>
+    <button onclick="selectAlgorithm('rushhour')">Rush Hour</button>
+    <button onclick="selectAlgorithm('floorhogging')">Floor Hogging</button>
+</nav>
+
+<!-- Main Content -->
+<main>
+    <section id="simulation">
+        <canvas id="elevatorCanvas" width="300" height="400"></canvas>
+    </section>
+    <section id="algorithm-info">
+        <h2>Valgt algoritme:</h2>
+        <p id="currentAlgorithm">Ingen valgt</p>
+    </section>
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
