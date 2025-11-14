@@ -1,72 +1,141 @@
 /**
  * FCFS Elevator Algorithm (First-Come, First-Served)
- * Simple but inefficient - serves requests in the order they arrive.
- * No optimization for direction or distance.
+ * Serves guests in the order they call the elevator.
+ * Tracks individual guest wait times and journey times.
  */
 
 class FcfsElevator {
     constructor(numFloors = 10) {
-        this.numFloors = numFloors; // Number of floors
+        this.numFloors = numFloors;
         this.currentFloor = 0;
-        this.requestQueue = []; // Queue of floor requests in order received
-        this.visitedFloors = []; // Track the order of visited floors
+        this.currentStep = 0;
+
+        // Guest management
+        this.waitingGuests = []; // Guests waiting to be picked up (FIFO queue)
+        this.ridingGuests = []; // Guests currently in elevator
+        this.deliveredGuests = []; // Guests who reached destination
+
+        // Current task tracking
+        this.currentTask = null; // { type: 'pickup'|'dropoff', floor: number, guest: Guest }
     }
 
     /**
-     * Add a floor request to the queue
-     * @param {number} floor - The floor number to visit
+     * Add a guest to the waiting queue
+     * @param {Guest} guest - Guest object with startFloor and destinationFloor
      */
-    addRequest(floor) {
-        if (floor >= 0 && floor < this.numFloors) {
-            this.requestQueue.push(floor);
+    addGuest(guest) {
+        if (guest.startFloor >= 0 && guest.startFloor < this.numFloors &&
+            guest.destinationFloor >= 0 && guest.destinationFloor < this.numFloors) {
+            this.waitingGuests.push(guest);
         }
     }
 
     /**
-     * Get the current direction based on next target
-     * @returns {number} - 1 for up, -1 for down, 0 for idle
+     * Get the next task (pickup or dropoff)
+     * @returns {object|null} - Next task or null if idle
      */
-    getCurrentDirection() {
-        if (this.requestQueue.length === 0) {
-            return 0; // Idle
+    getNextTask() {
+        // Priority 1: Drop off current passengers first
+        if (this.ridingGuests.length > 0) {
+            // Find the first passenger in queue order
+            const nextGuest = this.ridingGuests[0];
+            return {
+                type: 'dropoff',
+                floor: nextGuest.destinationFloor,
+                guest: nextGuest
+            };
         }
-        const nextFloor = this.requestQueue[0];
-        if (nextFloor > this.currentFloor) {
-            return 1; // Going up
-        } else if (nextFloor < this.currentFloor) {
-            return -1; // Going down
+
+        // Priority 2: Pick up next waiting guest
+        if (this.waitingGuests.length > 0) {
+            const nextGuest = this.waitingGuests[0];
+            return {
+                type: 'pickup',
+                floor: nextGuest.startFloor,
+                guest: nextGuest
+            };
         }
-        return 0; // Already at target floor
+
+        return null; // No tasks
     }
 
     /**
-     * Move to the next floor according to FCFS algorithm
-     * @returns {object} - Current state with floor and action
+     * Execute one simulation step
+     * @returns {object} - Current state
      */
     step() {
-        // If no requests, stay idle
-        if (this.requestQueue.length === 0) {
+        this.currentStep++;
+
+        // Get current or next task
+        if (!this.currentTask) {
+            this.currentTask = this.getNextTask();
+        }
+
+        // If no task, stay idle
+        if (!this.currentTask) {
             return {
+                step: this.currentStep,
                 floor: this.currentFloor,
                 action: 'idle',
-                direction: 'idle',
-                remainingRequests: []
+                waitingGuests: this.waitingGuests.length,
+                ridingGuests: this.ridingGuests.length,
+                deliveredGuests: this.deliveredGuests.length
             };
         }
 
-        const targetFloor = this.requestQueue[0];
+        const targetFloor = this.currentTask.floor;
 
-        // If we're at the target floor, service it
+        // If we're at the target floor, execute the task
         if (this.currentFloor === targetFloor) {
-            this.requestQueue.shift(); // Remove the serviced request
-            this.visitedFloors.push(this.currentFloor);
-            return {
-                floor: this.currentFloor,
-                action: 'serviced',
-                direction: this.getCurrentDirection() === 1 ? 'up' :
-                          this.getCurrentDirection() === -1 ? 'down' : 'idle',
-                remainingRequests: [...this.requestQueue]
-            };
+            if (this.currentTask.type === 'pickup') {
+                // Pick up the guest
+                const guest = this.currentTask.guest;
+                guest.pickupStep = this.currentStep;
+                guest.state = 'riding';
+
+                // Move from waiting to riding
+                this.waitingGuests.shift();
+                this.ridingGuests.push(guest);
+
+                const result = {
+                    step: this.currentStep,
+                    floor: this.currentFloor,
+                    action: 'pickup',
+                    guestId: guest.id,
+                    waitTime: guest.getWaitTime(),
+                    destination: guest.destinationFloor,
+                    waitingGuests: this.waitingGuests.length,
+                    ridingGuests: this.ridingGuests.length,
+                    deliveredGuests: this.deliveredGuests.length
+                };
+
+                this.currentTask = null; // Clear task
+                return result;
+
+            } else if (this.currentTask.type === 'dropoff') {
+                // Drop off the guest
+                const guest = this.currentTask.guest;
+                guest.dropoffStep = this.currentStep;
+                guest.state = 'delivered';
+
+                // Move from riding to delivered
+                this.ridingGuests.shift();
+                this.deliveredGuests.push(guest);
+
+                const result = {
+                    step: this.currentStep,
+                    floor: this.currentFloor,
+                    action: 'dropoff',
+                    guestId: guest.id,
+                    totalTime: guest.getTotalTime(),
+                    waitingGuests: this.waitingGuests.length,
+                    ridingGuests: this.ridingGuests.length,
+                    deliveredGuests: this.deliveredGuests.length
+                };
+
+                this.currentTask = null; // Clear task
+                return result;
+            }
         }
 
         // Move one floor towards the target
@@ -74,76 +143,103 @@ class FcfsElevator {
         this.currentFloor += direction;
 
         return {
+            step: this.currentStep,
             floor: this.currentFloor,
             action: 'moving',
             direction: direction === 1 ? 'up' : 'down',
             targetFloor: targetFloor,
-            remainingRequests: [...this.requestQueue]
+            targetTask: this.currentTask.type,
+            waitingGuests: this.waitingGuests.length,
+            ridingGuests: this.ridingGuests.length,
+            deliveredGuests: this.deliveredGuests.length
         };
     }
 
     /**
-     * Run the complete algorithm until all requests are serviced
+     * Run simulation until all guests are delivered
+     * @param {number} maxSteps - Safety limit
      * @returns {array} - Array of all states
      */
-    runComplete() {
+    runComplete(maxSteps = 10000) {
         const states = [];
-        while (this.requestQueue.length > 0) {
+
+        while (this.waitingGuests.length > 0 || this.ridingGuests.length > 0) {
             const state = this.step();
             states.push(state);
 
-            // Prevent infinite loop
-            if (states.length > 1000) {
-                console.error("Exceeded maximum iterations");
+            if (this.currentStep > maxSteps) {
+                console.error("Exceeded maximum steps");
                 break;
             }
         }
+
         return states;
     }
 
     /**
-     * Calculate total distance traveled
-     * @returns {number}
-     */
-    calculateTotalDistance() {
-        let distance = 0;
-        let currentPos = 0;
-
-        for (let floor of this.visitedFloors) {
-            distance += Math.abs(floor - currentPos);
-            currentPos = floor;
-        }
-
-        return distance;
-    }
-
-    /**
-     * Get statistics about the algorithm performance
+     * Get statistics about elevator performance
      * @returns {object}
      */
     getStats() {
+        const waitTimes = this.deliveredGuests.map(g => g.getWaitTime());
+        const totalTimes = this.deliveredGuests.map(g => g.getTotalTime());
+
+        const avgWaitTime = waitTimes.length > 0
+            ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length
+            : 0;
+
+        const maxWaitTime = waitTimes.length > 0
+            ? Math.max(...waitTimes)
+            : 0;
+
+        const avgTotalTime = totalTimes.length > 0
+            ? totalTimes.reduce((a, b) => a + b, 0) / totalTimes.length
+            : 0;
+
         return {
-            visitedFloors: this.visitedFloors,
-            totalStops: this.visitedFloors.length,
-            totalDistance: this.calculateTotalDistance(),
-            pendingRequests: [...this.requestQueue]
+            totalSteps: this.currentStep,
+            guestsDelivered: this.deliveredGuests.length,
+            guestsWaiting: this.waitingGuests.length,
+            guestsRiding: this.ridingGuests.length,
+            averageWaitTime: avgWaitTime,
+            maxWaitTime: maxWaitTime,
+            averageTotalTime: avgTotalTime,
+            allWaitTimes: waitTimes,
+            allTotalTimes: totalTimes
         };
     }
 
     /**
-     * Reset the elevator to initial state
+     * Get detailed guest information
+     * @returns {array}
+     */
+    getGuestDetails() {
+        return this.deliveredGuests.map(g => ({
+            id: g.id,
+            from: g.startFloor,
+            to: g.destinationFloor,
+            arrivalStep: g.arrivalStep,
+            pickupStep: g.pickupStep,
+            dropoffStep: g.dropoffStep,
+            waitTime: g.getWaitTime(),
+            totalTime: g.getTotalTime()
+        }));
+    }
+
+    /**
+     * Reset the elevator
      */
     reset() {
         this.currentFloor = 0;
-        this.requestQueue = [];
-        this.visitedFloors = [];
+        this.currentStep = 0;
+        this.waitingGuests = [];
+        this.ridingGuests = [];
+        this.deliveredGuests = [];
+        this.currentTask = null;
     }
 }
 
-// Example usage:
-// const elevator = new FcfsElevator(10);
-// elevator.addRequest(5);
-// elevator.addRequest(3);
-// elevator.addRequest(7);
-// const states = elevator.runComplete();
-// console.log(elevator.getStats());
+// Export for Node.js or browser
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FcfsElevator;
+}
