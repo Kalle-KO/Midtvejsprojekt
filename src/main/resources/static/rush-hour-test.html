@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>Rush Hour Elevator - Test</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background-color: #45a049;
+        }
+
+        .controls button.stop {
+            background-color: #f44336;
+        }
+
+        .controls button.stop:hover {
+            background-color: #da190b;
+        }
+
+        .visualization {
+            display: flex;
+            gap: 20px;
+        }
+
+        .canvas-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        canvas {
+            border: 1px solid #ddd;
+            background-color: #fafafa;
+        }
+
+        .info-panel {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex: 1;
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .info-panel .stat {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .info-panel .stat label {
+            font-weight: bold;
+            color: #666;
+        }
+
+        .info-panel .stat .value {
+            color: #4CAF50;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .scenario-info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .scenario-info h4 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+
+        .speed-control {
+            margin: 15px 0;
+        }
+
+        .speed-control input {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🏢 Rush Hour Elevator Optimization</h1>
+        <p>Intelligent batching for peak commute periods</p>
+    </header>
+
+    <div class="controls">
+        <button onclick="startSimulation('light')">Light Traffic (10 requests)</button>
+        <button onclick="startSimulation('moderate')">Moderate Traffic (20 requests)</button>
+        <button onclick="startSimulation('heavy')">Heavy Rush Hour (30 requests)</button>
+        <button class="stop" onclick="stopSimulation()">Stop</button>
+
+        <div class="speed-control">
+            <label>Animation Speed: </label>
+            <input type="range" id="speedSlider" min="100" max="1000" value="500" step="50">
+            <span id="speedValue">500ms</span>
+        </div>
+    </div>
+
+    <div class="visualization">
+        <div class="canvas-container">
+            <canvas id="elevatorCanvas" width="300" height="500"></canvas>
+        </div>
+
+        <div class="info-panel">
+            <h3>Algorithm: Rush Hour Optimization</h3>
+
+            <div class="stat">
+                <label>Current Floor:</label>
+                <div class="value" id="currentFloor">1</div>
+            </div>
+
+            <div class="stat">
+                <label>Direction:</label>
+                <div class="value" id="direction">UP</div>
+            </div>
+
+            <div class="stat">
+                <label>Pending Requests:</label>
+                <div class="value" id="pending">0</div>
+            </div>
+
+            <div class="stat">
+                <label>Total Moves:</label>
+                <div class="value" id="moves">0</div>
+            </div>
+
+            <div class="scenario-info">
+                <h4>How It Works:</h4>
+                <p>During rush hour, the elevator prioritizes <strong>batching passengers</strong> moving in the same direction.</p>
+                <ul>
+                    <li>80% of requests are upward from floor 1 (morning commute)</li>
+                    <li>Groups all upward-bound passengers before reversing</li>
+                    <li>Minimizes direction changes to reduce total travel time</li>
+                </ul>
+                <p><strong>Expected improvement:</strong> 25-35% reduction in average wait time vs. standard SCAN</p>
+            </div>
+
+            <div class="legend">
+                <h4>Legend:</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #4CAF50;"></div>
+                    <span>Elevator moving UP</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #2196F3;"></div>
+                    <span>Elevator moving DOWN</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FF5722;"></div>
+                    <span>Pending request (red dots)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="rush-hour.js"></script>
+<script>
+    let visualizer;
+    let currentSimulation = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        visualizer = new RushHourVisualizer('elevatorCanvas', 10);
+        visualizer.draw();
+
+        // Speed control
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            const speed = e.target.value;
+            document.getElementById('speedValue').textContent = speed + 'ms';
+            if (visualizer) {
+                visualizer.animationSpeed = parseInt(speed);
+            }
+        });
+    });
+
+    function startSimulation(type) {
+        stopSimulation();
+
+        let numRequests;
+        switch(type) {
+            case 'light': numRequests = 10; break;
+            case 'moderate': numRequests = 20; break;
+            case 'heavy': numRequests = 30; break;
+            default: numRequests = 20;
+        }
+
+        // Generate rush hour scenario
+        const requests = generateRushHourRequests(numRequests, 10);
+
+        // Update UI
+        updateStats();
+
+        // Start visualization
+        visualizer.start(requests);
+
+        // Update stats periodically
+        currentSimulation = setInterval(updateStats, 100);
+    }
+
+    function stopSimulation() {
+        if (visualizer) {
+            visualizer.stop();
+        }
+        if (currentSimulation) {
+            clearInterval(currentSimulation);
+            currentSimulation = null;
+        }
+    }
+
+    function updateStats() {
+        if (!visualizer) return;
+
+        document.getElementById('currentFloor').textContent = visualizer.elevator.currentFloor;
+        document.getElementById('direction').textContent = visualizer.elevator.direction;
+        document.getElementById('pending').textContent = visualizer.elevator.requests.size;
+        document.getElementById('moves').textContent = visualizer.elevator.totalMoves;
+
+        // Stop updating if simulation is done
+        if (visualizer.elevator.requests.size === 0) {
+            stopSimulation();
+        }
+    }
+</script>
+</body>
+</html>

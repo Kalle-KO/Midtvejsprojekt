@@ -6,7 +6,20 @@ function selectAlgorithm(type) {
     };
 
     document.getElementById("currentAlgorithm").textContent = text[type] || "Ukendt algoritme";
-    drawElevator(type);
+
+    switch(type) {
+        case 'baseline':
+            drawBaseline();
+            break;
+        case 'rushhour':
+            runRushHour();
+            break;
+        case 'floorhogging':
+            drawFloorHogging();
+            break;
+        default:
+            drawElevator(type);
+    }
 }
 
 function drawElevator(type) {
