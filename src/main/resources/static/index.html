@@ -202,63 +202,6 @@
             color: #FF9800;
         }
 
-        .summary-stats {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .summary-stats h2 {
-            margin-bottom: 20px;
-            color: #333;
-            text-align: center;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-        }
-
-        .summary-card {
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 4px;
-            text-align: center;
-        }
-
-        .summary-card h4 {
-            margin-bottom: 10px;
-            color: #666;
-            font-size: 14px;
-            text-transform: uppercase;
-        }
-
-        .summary-card .value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-
-        .summary-card.scan .value {
-            color: #2196F3;
-        }
-
-        .summary-card.fcfs .value {
-            color: #FF9800;
-        }
-
-        .winner-badge {
-            display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            margin-left: 8px;
-        }
-
         .speed-control {
             margin-top: 15px;
             text-align: center;
@@ -271,10 +214,6 @@
 
         @media (max-width: 1200px) {
             .comparison-container {
-                grid-template-columns: 1fr;
-            }
-
-            .summary-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -427,24 +366,6 @@
                 <span class="metric-label">Requests Served:</span>
                 <span class="metric-value" id="served-fcfs">0</span>
             </div>
-        </div>
-    </div>
-</div>
-
-<div class="summary-stats">
-    <h2>📊 Performance Summary</h2>
-    <div class="summary-grid">
-        <div class="summary-card rushhour">
-            <h4>Rush Hour - Efficiency</h4>
-            <div class="value" id="summary-rushhour">-</div>
-        </div>
-        <div class="summary-card scan">
-            <h4>SCAN - Efficiency</h4>
-            <div class="value" id="summary-scan">-</div>
-        </div>
-        <div class="summary-card fcfs">
-            <h4>FCFS - Efficiency</h4>
-            <div class="value" id="summary-fcfs">-</div>
         </div>
     </div>
 </div>

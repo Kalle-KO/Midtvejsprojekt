@@ -65,12 +65,28 @@ class ElevatorVisualizer {
             ? Array.from(this.elevator.requests)
             : this.elevator.requestQueue || [];
 
+        const floorCounts = new Map();
         requests.forEach(floor => {
-            const y = height - 20 - ((floor - 1) * floorHeight) - floorHeight / 2;
-            ctx.fillStyle = '#FF5722';
-            ctx.beginPath();
-            ctx.arc(shaftX + shaftWidth + 25, y, 5, 0, Math.PI * 2);
-            ctx.fill();
+            floorCounts.set(floor, (floorCounts.get(floor) || 0) + 1);
+        });
+
+        floorCounts.forEach((count, floor) => {
+            const floorY = height - 20 - ((floor - 1) * floorHeight) - floorHeight / 2;
+            const startX = shaftX + shaftWidth + 10;
+            const spacing = 8;
+
+            for (let i = 0; i < Math.min(count, 8); i++) {
+                ctx.fillStyle = '#FF5722';
+                ctx.beginPath();
+                ctx.arc(startX + (i * spacing), floorY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (count > 8) {
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(`+${count - 8}`, startX + (8 * spacing) + 2, floorY + 3);
+            }
         });
     }
 
@@ -371,11 +387,5 @@ function updateMetrics() {
         document.getElementById(`avgwait-${alg}`).textContent = metrics.avgWait + 's';
         document.getElementById(`maxwait-${alg}`).textContent = metrics.maxWait + 's';
         document.getElementById(`served-${alg}`).textContent = metrics.served;
-
-        const efficiency = metrics.served > 0
-            ? (metrics.totalMoves / metrics.served).toFixed(2)
-            : '-';
-        document.getElementById(`summary-${alg}`).textContent =
-            efficiency !== '-' ? `${efficiency} moves/request` : 'No data';
     });
 }
