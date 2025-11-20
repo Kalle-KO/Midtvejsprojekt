@@ -102,7 +102,7 @@ class ElevatorVisualizer {
             avgWait,
             maxWait,
             served: this.servedCount,
-            totalMoves: this.elevator.totalMoves || this.elevator.visitedFloors?.length || 0
+            totalMoves: this.elevator.totalMoves || 0
         };
     }
 
@@ -126,14 +126,14 @@ class ElevatorVisualizer {
         const result = this.elevator.step();
 
         if (result.served) {
-            this.trackServed(result.floor || result.currentFloor);
+            this.trackServed(this.elevator.currentFloor);
         }
 
         const hasRequests = this.elevator.requests instanceof Set
             ? this.elevator.requests.size > 0
             : this.elevator.requestQueue?.length > 0;
 
-        if (hasRequests || window.continuousMode) {
+        if (hasRequests || continuousMode) {
             this.animationId = setTimeout(() => this.animate(), this.animationSpeed);
         } else {
             this.isRunning = false;
@@ -192,7 +192,7 @@ const ScenarioGenerator = {
         };
     },
 
-    floorhogging: (numFloors = 10) => {
+    floorhogging: () => {
         const requests = [];
         for (let i = 0; i < 30; i++) {
             if (Math.random() < 0.7) {
@@ -208,55 +208,12 @@ const ScenarioGenerator = {
             description: 'Floor Hogging: Short trips monopolize elevator',
             detail: '30 requests - 70% between floors 1-3, 30% to high floors. Tests starvation prevention.'
         };
-    },
-
-    random: (numFloors = 10) => {
-        const requests = [];
-        const numRequests = 15 + Math.floor(Math.random() * 15);
-        for (let i = 0; i < numRequests; i++) {
-            const floor = Math.floor(Math.random() * numFloors) + 1;
-            const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-            requests.push({ floor, direction });
-        }
-        return {
-            requests,
-            description: 'Random Traffic: Unpredictable patterns',
-            detail: `${numRequests} completely random requests. Tests algorithm adaptability.`
-        };
-    },
-
-    extreme: (numFloors = 10) => {
-        const requests = [];
-        for (let i = 0; i < 40; i++) {
-            const floor = Math.floor(Math.random() * numFloors) + 1;
-            const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-            requests.push({ floor, direction });
-        }
-        return {
-            requests,
-            description: 'Extreme Load: Stress test',
-            detail: '40 simultaneous requests. Tests algorithm performance under heavy load.'
-        };
-    },
-
-    continuous: (numFloors = 10) => {
-        const requests = [];
-        for (let i = 0; i < 10; i++) {
-            const floor = Math.floor(Math.random() * numFloors) + 1;
-            const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-            requests.push({ floor, direction });
-        }
-        return {
-            requests,
-            description: 'Continuous Mode: Ongoing simulation',
-            detail: 'New requests are added periodically. Run indefinitely until stopped.'
-        };
     }
 };
 
 let visualizers = {};
 let updateInterval = null;
-window.continuousMode = false;
+let continuousMode = false;
 let continuousInterval = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -295,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function runScenario(scenarioName) {
-    stopAll();
+    stopContinuous();
 
     const scenario = ScenarioGenerator[scenarioName](10);
 
@@ -319,37 +276,70 @@ function runScenario(scenarioName) {
 
     Object.values(visualizers).forEach(v => v.start());
 
-    if (scenarioName === 'continuous') {
-        window.continuousMode = true;
-        continuousInterval = setInterval(() => {
-            addRandomRequest();
-        }, 3000);
+    if (continuousMode) {
+        startContinuous();
     }
 
     updateInterval = setInterval(updateMetrics, 100);
 }
 
-function addRandomRequest() {
-    const floor = Math.floor(Math.random() * 10) + 1;
-    const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
+function addRandomRequests() {
+    const numRequests = Math.floor(Math.random() * 3) + 3;
 
-    visualizers.rushhour.elevator.addRequest(floor, direction);
-    visualizers.rushhour.trackRequest(floor);
+    for (let i = 0; i < numRequests; i++) {
+        const floor = Math.floor(Math.random() * 10) + 1;
+        const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
 
-    visualizers.scan.elevator.addRequest(floor);
-    visualizers.scan.trackRequest(floor);
+        visualizers.rushhour.elevator.addRequest(floor, direction);
+        visualizers.rushhour.trackRequest(floor);
 
-    visualizers.fcfs.elevator.addRequest(floor);
-    visualizers.fcfs.trackRequest(floor);
+        visualizers.scan.elevator.addRequest(floor);
+        visualizers.scan.trackRequest(floor);
+
+        visualizers.fcfs.elevator.addRequest(floor);
+        visualizers.fcfs.trackRequest(floor);
+    }
 }
 
-function stopAll() {
-    window.continuousMode = false;
+function startContinuous() {
+    if (!continuousInterval) {
+        continuousInterval = setInterval(() => {
+            addRandomRequests();
+        }, 2000);
+    }
+}
 
+function stopContinuous() {
     if (continuousInterval) {
         clearInterval(continuousInterval);
         continuousInterval = null;
     }
+}
+
+function toggleContinuousMode() {
+    const checkbox = document.getElementById('continuousToggle');
+    continuousMode = checkbox.checked;
+
+    if (continuousMode) {
+        startContinuous();
+        Object.values(visualizers).forEach(v => {
+            if (!v.isRunning) {
+                v.start();
+            }
+        });
+    } else {
+        stopContinuous();
+    }
+}
+
+function stopAll() {
+    continuousMode = false;
+    const checkbox = document.getElementById('continuousToggle');
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+
+    stopContinuous();
 
     if (updateInterval) {
         clearInterval(updateInterval);

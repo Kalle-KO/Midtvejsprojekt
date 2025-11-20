@@ -4,7 +4,6 @@ class ScanElevator {
         this.currentFloor = 1;
         this.direction = 1;
         this.requests = new Set();
-        this.visitedFloors = [];
         this.totalMoves = 0;
     }
 
@@ -41,7 +40,6 @@ class ScanElevator {
     step() {
         if (this.requests.has(this.currentFloor)) {
             this.requests.delete(this.currentFloor);
-            this.visitedFloors.push(this.currentFloor);
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
@@ -94,33 +92,10 @@ class ScanElevator {
         };
     }
 
-    runComplete() {
-        const states = [];
-        while (this.requests.size > 0) {
-            const state = this.step();
-            states.push(state);
-
-            if (states.length > 1000) {
-                console.error("Exceeded maximum iterations");
-                break;
-            }
-        }
-        return states;
-    }
-
-    getStats() {
-        return {
-            visitedFloors: this.visitedFloors,
-            totalMoves: this.totalMoves,
-            pendingRequests: Array.from(this.requests)
-        };
-    }
-
     reset() {
         this.currentFloor = 1;
         this.direction = 1;
         this.requests.clear();
-        this.visitedFloors = [];
         this.totalMoves = 0;
     }
 }

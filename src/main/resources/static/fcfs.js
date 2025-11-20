@@ -3,7 +3,6 @@ class FcfsElevator {
         this.numFloors = numFloors;
         this.currentFloor = 1;
         this.requestQueue = [];
-        this.visitedFloors = [];
         this.totalMoves = 0;
         this.direction = 'IDLE';
     }
@@ -47,7 +46,6 @@ class FcfsElevator {
 
         if (this.currentFloor === targetFloor) {
             this.requestQueue.shift();
-            this.visitedFloors.push(this.currentFloor);
 
             const nextDir = this.getCurrentDirection();
             if (nextDir === 1) this.direction = 'UP';
@@ -78,46 +76,9 @@ class FcfsElevator {
         };
     }
 
-    runComplete() {
-        const states = [];
-        while (this.requestQueue.length > 0) {
-            const state = this.step();
-            states.push(state);
-
-            if (states.length > 1000) {
-                console.error("Exceeded maximum iterations");
-                break;
-            }
-        }
-        return states;
-    }
-
-    calculateTotalDistance() {
-        let distance = 0;
-        let currentPos = 1;
-
-        for (let floor of this.visitedFloors) {
-            distance += Math.abs(floor - currentPos);
-            currentPos = floor;
-        }
-
-        return distance;
-    }
-
-    getStats() {
-        return {
-            visitedFloors: this.visitedFloors,
-            totalStops: this.visitedFloors.length,
-            totalDistance: this.calculateTotalDistance(),
-            totalMoves: this.totalMoves,
-            pendingRequests: [...this.requestQueue]
-        };
-    }
-
     reset() {
         this.currentFloor = 1;
         this.requestQueue = [];
-        this.visitedFloors = [];
         this.totalMoves = 0;
         this.direction = 'IDLE';
     }

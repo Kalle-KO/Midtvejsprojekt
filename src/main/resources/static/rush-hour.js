@@ -6,7 +6,6 @@ class RushHourElevator {
         this.requests = new Set();
         this.upRequests = new Set();
         this.downRequests = new Set();
-        this.moveHistory = [];
         this.totalMoves = 0;
     }
 
@@ -77,35 +76,12 @@ class RushHourElevator {
             served = true;
         }
 
-        this.moveHistory.push({
-            floor: this.currentFloor,
-            direction: this.direction,
-            served: served,
-            remaining: this.requests.size
-        });
-
         return {
             done: false,
             currentFloor: this.currentFloor,
-            floor: this.currentFloor,
             direction: this.direction,
             served: served,
             remaining: this.requests.size
-        };
-    }
-
-    runSimulation() {
-        const steps = [];
-        let maxSteps = 1000;
-
-        while (this.requests.size > 0 && maxSteps-- > 0) {
-            steps.push(this.step());
-        }
-
-        return {
-            steps: steps,
-            totalMoves: this.totalMoves,
-            efficiency: this.totalMoves / Math.max(1, steps.filter(s => s.served).length)
         };
     }
 
@@ -115,118 +91,6 @@ class RushHourElevator {
         this.requests.clear();
         this.upRequests.clear();
         this.downRequests.clear();
-        this.moveHistory = [];
         this.totalMoves = 0;
     }
-}
-
-function generateRushHourRequests(numRequests = 20, numFloors = 10) {
-    const requests = [];
-
-    for (let i = 0; i < numRequests; i++) {
-        if (Math.random() < 0.8) {
-            const targetFloor = Math.floor(Math.random() * (numFloors - 1)) + 2;
-            requests.push({ floor: targetFloor, direction: 'UP', fromFloor: 1 });
-        } else {
-            const floor = Math.floor(Math.random() * numFloors) + 1;
-            const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-            requests.push({ floor: floor, direction: direction });
-        }
-    }
-
-    return requests;
-}
-
-class RushHourVisualizer {
-    constructor(canvasId, numFloors = 10) {
-        this.canvas = document.getElementById(canvasId);
-        this.ctx = this.canvas.getContext('2d');
-        this.numFloors = numFloors;
-        this.elevator = new RushHourElevator(numFloors);
-        this.animationId = null;
-        this.animationSpeed = 500;
-    }
-
-    draw() {
-        const ctx = this.ctx;
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-
-        ctx.clearRect(0, 0, width, height);
-
-        const floorHeight = (height - 40) / this.numFloors;
-        const shaftX = width / 2 - 30;
-        const shaftWidth = 60;
-
-        ctx.strokeStyle = '#ddd';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= this.numFloors; i++) {
-            const y = height - 20 - (i * floorHeight);
-            ctx.beginPath();
-            ctx.moveTo(shaftX - 20, y);
-            ctx.lineTo(shaftX + shaftWidth + 20, y);
-            ctx.stroke();
-
-            ctx.fillStyle = '#666';
-            ctx.font = '12px monospace';
-            ctx.fillText(String(i + 1), shaftX - 40, y + 5);
-        }
-
-        ctx.strokeStyle = '#999';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(shaftX, 20, shaftWidth, height - 40);
-
-        const elevatorY = height - 20 - ((this.elevator.currentFloor - 1) * floorHeight) - floorHeight + 10;
-        ctx.fillStyle = this.elevator.direction === 'UP' ? '#4CAF50' : '#2196F3';
-        ctx.fillRect(shaftX + 5, elevatorY, shaftWidth - 10, floorHeight - 20);
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 20px sans-serif';
-        const arrow = this.elevator.direction === 'UP' ? '↑' : '↓';
-        ctx.fillText(arrow, shaftX + shaftWidth / 2 - 8, elevatorY + floorHeight / 2);
-
-        Array.from(this.elevator.requests).forEach(floor => {
-            const y = height - 20 - ((floor - 1) * floorHeight) - floorHeight / 2;
-            ctx.fillStyle = '#FF5722';
-            ctx.beginPath();
-            ctx.arc(shaftX + shaftWidth + 35, y, 6, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        ctx.fillStyle = '#333';
-        ctx.font = '14px system-ui';
-        ctx.fillText(`Floor: ${this.elevator.currentFloor}`, 10, 20);
-        ctx.fillText(`Direction: ${this.elevator.direction}`, 10, 40);
-        ctx.fillText(`Pending: ${this.elevator.requests.size}`, 10, 60);
-        ctx.fillText(`Moves: ${this.elevator.totalMoves}`, 10, 80);
-    }
-
-    start(requests) {
-        this.elevator.reset();
-        requests.forEach(req => {
-            this.elevator.addRequest(req.floor, req.direction);
-        });
-        this.animate();
-    }
-
-    animate() {
-        this.draw();
-        if (this.elevator.requests.size > 0) {
-            this.animationId = setTimeout(() => {
-                this.elevator.step();
-                this.animate();
-            }, this.animationSpeed);
-        }
-    }
-
-    stop() {
-        if (this.animationId) {
-            clearTimeout(this.animationId);
-            this.animationId = null;
-        }
-    }
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { RushHourElevator, generateRushHourRequests, RushHourVisualizer };
 }
