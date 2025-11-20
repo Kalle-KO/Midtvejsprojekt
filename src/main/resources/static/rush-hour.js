@@ -57,6 +57,7 @@ class RushHourElevator {
         const nextFloor = this.getNextFloor();
 
         if (nextFloor === null) {
+            this.direction = 'IDLE';
             return { done: true, currentFloor: this.currentFloor, direction: this.direction, served: false };
         }
 
@@ -74,6 +75,11 @@ class RushHourElevator {
             this.upRequests.delete(this.currentFloor);
             this.downRequests.delete(this.currentFloor);
             served = true;
+
+            // Hvis der ikke er flere requests, sæt til IDLE
+            if (this.requests.size === 0) {
+                this.direction = 'IDLE';
+            }
         }
 
         return {
