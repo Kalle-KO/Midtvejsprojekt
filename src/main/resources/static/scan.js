@@ -38,8 +38,22 @@ class ScanElevator {
     }
 
     step() {
+        // Tjek først om vi skal servicere nuværende etage
         if (this.requests.has(this.currentFloor)) {
             this.requests.delete(this.currentFloor);
+
+            // Hvis der ikke er flere requests, er vi færdige
+            if (this.requests.size === 0) {
+                this.direction = 0; // IDLE
+                return {
+                    floor: this.currentFloor,
+                    action: 'serviced',
+                    direction: 'idle',
+                    remainingRequests: [],
+                    served: true
+                };
+            }
+
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
@@ -50,10 +64,11 @@ class ScanElevator {
         }
 
         if (this.requests.size === 0) {
+            this.direction = 0; // IDLE
             return {
                 floor: this.currentFloor,
                 action: 'idle',
-                direction: this.direction === 1 ? 'up' : 'down',
+                direction: 'idle',
                 remainingRequests: [],
                 served: false
             };

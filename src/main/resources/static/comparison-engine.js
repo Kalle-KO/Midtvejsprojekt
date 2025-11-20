@@ -130,8 +130,6 @@ class ElevatorVisualizer {
     animate() {
         if (!this.isRunning) return;
 
-        this.draw();
-
         const currentFloor = this.elevator.currentFloor;
         if (this.elevator.requests instanceof Set) {
             if (this.elevator.requests.has(currentFloor)) {
@@ -144,6 +142,9 @@ class ElevatorVisualizer {
         if (result.served) {
             this.trackServed(this.elevator.currentFloor);
         }
+
+        // Tegn EFTER step() så vi ser servicering
+        this.draw();
 
         const hasRequests = this.elevator.requests instanceof Set
             ? this.elevator.requests.size > 0
