@@ -1,98 +1,89 @@
-/**
- * FCFS Elevator Algorithm (First-Come, First-Served)
- * Simple but inefficient - serves requests in the order they arrive.
- * No optimization for direction or distance.
- */
-
 class FcfsElevator {
     constructor(numFloors = 10) {
-        this.numFloors = numFloors; // Number of floors
-        this.currentFloor = 0;
-        this.requestQueue = []; // Queue of floor requests in order received
-        this.visitedFloors = []; // Track the order of visited floors
+        this.numFloors = numFloors;
+        this.currentFloor = 1;
+        this.requestQueue = [];
+        this.visitedFloors = [];
+        this.totalMoves = 0;
+        this.direction = 'IDLE';
     }
 
-    /**
-     * Add a floor request to the queue
-     * @param {number} floor - The floor number to visit
-     */
     addRequest(floor) {
-        if (floor >= 0 && floor < this.numFloors) {
+        if (floor >= 1 && floor <= this.numFloors) {
             this.requestQueue.push(floor);
         }
     }
 
-    /**
-     * Get the current direction based on next target
-     * @returns {number} - 1 for up, -1 for down, 0 for idle
-     */
     getCurrentDirection() {
         if (this.requestQueue.length === 0) {
-            return 0; // Idle
+            return 0;
         }
         const nextFloor = this.requestQueue[0];
         if (nextFloor > this.currentFloor) {
-            return 1; // Going up
+            return 1;
         } else if (nextFloor < this.currentFloor) {
-            return -1; // Going down
+            return -1;
         }
-        return 0; // Already at target floor
+        return 0;
     }
 
-    /**
-     * Move to the next floor according to FCFS algorithm
-     * @returns {object} - Current state with floor and action
-     */
     step() {
-        // If no requests, stay idle
+        const dir = this.getCurrentDirection();
+        if (dir === 1) this.direction = 'UP';
+        else if (dir === -1) this.direction = 'DOWN';
+        else this.direction = 'IDLE';
+
         if (this.requestQueue.length === 0) {
             return {
                 floor: this.currentFloor,
                 action: 'idle',
                 direction: 'idle',
-                remainingRequests: []
+                remainingRequests: [],
+                served: false
             };
         }
 
         const targetFloor = this.requestQueue[0];
 
-        // If we're at the target floor, service it
         if (this.currentFloor === targetFloor) {
-            this.requestQueue.shift(); // Remove the serviced request
+            this.requestQueue.shift();
             this.visitedFloors.push(this.currentFloor);
+
+            const nextDir = this.getCurrentDirection();
+            if (nextDir === 1) this.direction = 'UP';
+            else if (nextDir === -1) this.direction = 'DOWN';
+            else this.direction = 'IDLE';
+
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
-                direction: this.getCurrentDirection() === 1 ? 'up' :
-                          this.getCurrentDirection() === -1 ? 'down' : 'idle',
-                remainingRequests: [...this.requestQueue]
+                direction: this.direction.toLowerCase(),
+                remainingRequests: [...this.requestQueue],
+                served: true
             };
         }
 
-        // Move one floor towards the target
         const direction = targetFloor > this.currentFloor ? 1 : -1;
         this.currentFloor += direction;
+        this.totalMoves++;
+        this.direction = direction === 1 ? 'UP' : 'DOWN';
 
         return {
             floor: this.currentFloor,
             action: 'moving',
             direction: direction === 1 ? 'up' : 'down',
             targetFloor: targetFloor,
-            remainingRequests: [...this.requestQueue]
+            remainingRequests: [...this.requestQueue],
+            served: false
         };
     }
 
-    /**
-     * Run the complete algorithm until all requests are serviced
-     * @returns {array} - Array of all states
-     */
     runComplete() {
         const states = [];
         while (this.requestQueue.length > 0) {
             const state = this.step();
             states.push(state);
 
-            // Prevent infinite loop
             if (states.length > 1000) {
                 console.error("Exceeded maximum iterations");
                 break;
@@ -101,13 +92,9 @@ class FcfsElevator {
         return states;
     }
 
-    /**
-     * Calculate total distance traveled
-     * @returns {number}
-     */
     calculateTotalDistance() {
         let distance = 0;
-        let currentPos = 0;
+        let currentPos = 1;
 
         for (let floor of this.visitedFloors) {
             distance += Math.abs(floor - currentPos);
@@ -117,33 +104,25 @@ class FcfsElevator {
         return distance;
     }
 
-    /**
-     * Get statistics about the algorithm performance
-     * @returns {object}
-     */
     getStats() {
         return {
             visitedFloors: this.visitedFloors,
             totalStops: this.visitedFloors.length,
             totalDistance: this.calculateTotalDistance(),
+            totalMoves: this.totalMoves,
             pendingRequests: [...this.requestQueue]
         };
     }
 
-    /**
-     * Reset the elevator to initial state
-     */
     reset() {
-        this.currentFloor = 0;
+        this.currentFloor = 1;
         this.requestQueue = [];
         this.visitedFloors = [];
+        this.totalMoves = 0;
+        this.direction = 'IDLE';
+    }
+
+    get requests() {
+        return new Set(this.requestQueue);
     }
 }
-
-// Example usage:
-// const elevator = new FcfsElevator(10);
-// elevator.addRequest(5);
-// elevator.addRequest(3);
-// elevator.addRequest(7);
-// const states = elevator.runComplete();
-// console.log(elevator.getStats());
