@@ -124,11 +124,10 @@ class ElevatorVisualizer {
 
     start() {
         this.isRunning = true;
-        this.animate();
     }
 
-    animate() {
-        if (!this.isRunning) return;
+    stepAndDraw() {
+        if (!this.isRunning) return false;
 
         const currentFloor = this.elevator.currentFloor;
         if (this.elevator.requests instanceof Set) {
@@ -150,11 +149,7 @@ class ElevatorVisualizer {
             ? this.elevator.requests.size > 0
             : this.elevator.requestQueue?.length > 0;
 
-        if (hasRequests || continuousMode) {
-            this.animationId = setTimeout(() => this.animate(), this.animationSpeed);
-        } else {
-            this.isRunning = false;
-        }
+        return hasRequests;
     }
 
     stop() {
@@ -232,6 +227,7 @@ let visualizers = {};
 let updateInterval = null;
 let continuousMode = false;
 let continuousInterval = null;
+let centralAnimationId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const numFloors = 10;
@@ -298,6 +294,37 @@ function runScenario(scenarioName) {
     }
 
     updateInterval = setInterval(updateMetrics, 100);
+    startCentralAnimation();
+}
+
+function startCentralAnimation() {
+    if (centralAnimationId) {
+        clearTimeout(centralAnimationId);
+    }
+
+    function animate() {
+        const speed = visualizers.rushhour.animationSpeed;
+
+        let anyHasRequests = false;
+
+        // Kør step på alle elevatorer samtidigt
+        Object.values(visualizers).forEach(viz => {
+            const hasRequests = viz.stepAndDraw();
+            if (hasRequests) {
+                anyHasRequests = true;
+            }
+        });
+
+        // Fortsæt hvis nogen har requests ELLER continuous mode er aktiv
+        if (anyHasRequests || continuousMode) {
+            centralAnimationId = setTimeout(animate, speed);
+        } else {
+            centralAnimationId = null;
+            Object.values(visualizers).forEach(v => v.isRunning = false);
+        }
+    }
+
+    animate();
 }
 
 function addRandomRequests() {
@@ -344,6 +371,10 @@ function toggleContinuousMode() {
                 v.start();
             }
         });
+        // Genstart central animation hvis den er stoppet
+        if (!centralAnimationId) {
+            startCentralAnimation();
+        }
     } else {
         stopContinuous();
     }
@@ -361,6 +392,11 @@ function stopAll() {
     if (updateInterval) {
         clearInterval(updateInterval);
         updateInterval = null;
+    }
+
+    if (centralAnimationId) {
+        clearTimeout(centralAnimationId);
+        centralAnimationId = null;
     }
 
     Object.values(visualizers).forEach(v => v.stop());
