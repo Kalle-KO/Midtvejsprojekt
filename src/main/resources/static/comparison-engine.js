@@ -9,7 +9,7 @@ class ElevatorVisualizer {
         this.animationSpeed = 300;
         this.isRunning = false;
 
-        this.requestTimestamps = new Map();
+        this.requestSteps = new Map(); // Map<floor, Array<stepNumber>>
         this.waitTimes = [];
         this.servedCount = 0;
     }
@@ -61,57 +61,77 @@ class ElevatorVisualizer {
         ctx.fillText(arrow, shaftX + shaftWidth / 2, elevatorY + floorHeight / 2 + 2);
         ctx.textAlign = 'left';
 
-        const requests = this.elevator.requests instanceof Set
-            ? Array.from(this.elevator.requests)
-            : this.elevator.requestQueue || [];
-
+    
         const floorCounts = new Map();
-        requests.forEach(floor => {
-            floorCounts.set(floor, (floorCounts.get(floor) || 0) + 1);
+        this.requestSteps.forEach((steps, floor) => {
+            floorCounts.set(floor, steps.length);
         });
 
         floorCounts.forEach((count, floor) => {
             const floorY = height - 20 - ((floor - 1) * floorHeight) - floorHeight / 2;
-            const startX = shaftX + shaftWidth + 10;
-            const spacing = 8;
+            const startX = shaftX + shaftWidth + 8;
+            const guestRadius = 5;
+            const horizontalSpacing = 11;
+            const verticalSpacing = 11;
+            const maxPerRow = 3;
+            const maxToShow = 12;
 
-            for (let i = 0; i < Math.min(count, 8); i++) {
+            for (let i = 0; i < Math.min(count, maxToShow); i++) {
+                const row = Math.floor(i / maxPerRow);
+                const col = i % maxPerRow;
+                const xPos = startX + (col * horizontalSpacing);
+                const yPos = floorY - 15 + (row * verticalSpacing);
+
+                // Draw guest as filled circle with outline
                 ctx.fillStyle = '#FF5722';
                 ctx.beginPath();
-                ctx.arc(startX + (i * spacing), floorY, 4, 0, Math.PI * 2);
+                ctx.arc(xPos, yPos, guestRadius, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.strokeStyle = '#D84315';
+                ctx.lineWidth = 1;
+                ctx.stroke();
             }
 
-            if (count > 8) {
+            if (count > maxToShow) {
                 ctx.fillStyle = '#333';
-                ctx.font = 'bold 10px sans-serif';
-                ctx.fillText(`+${count - 8}`, startX + (8 * spacing) + 2, floorY + 3);
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`+${count - maxToShow}`, startX + (maxPerRow * horizontalSpacing) + 2, floorY + 5);
             }
         });
     }
 
-    trackRequest(floor) {
-        if (!this.requestTimestamps.has(floor)) {
-            this.requestTimestamps.set(floor, Date.now());
+    trackRequest(floor, currentStep) {
+        if (!this.requestSteps.has(floor)) {
+            this.requestSteps.set(floor, []);
         }
+        this.requestSteps.get(floor).push(currentStep);
     }
 
-    trackServed(floor) {
-        if (this.requestTimestamps.has(floor)) {
-            const waitTime = (Date.now() - this.requestTimestamps.get(floor)) / 1000;
-            this.waitTimes.push(waitTime);
-            this.requestTimestamps.delete(floor);
-            this.servedCount++;
+    trackServed(floor, currentStep) {
+        if (this.requestSteps.has(floor)) {
+            const steps = this.requestSteps.get(floor);
+            if (steps.length > 0) {
+                // Serve the oldest request (FIFO)
+                const requestStep = steps.shift();
+                const waitTime = currentStep - requestStep;
+                this.waitTimes.push(waitTime);
+                this.servedCount++;
+
+                // Remove floor from map if no more requests
+                if (steps.length === 0) {
+                    this.requestSteps.delete(floor);
+                }
+            }
         }
     }
 
     getMetrics() {
         const avgWait = this.waitTimes.length > 0
-            ? (this.waitTimes.reduce((a, b) => a + b, 0) / this.waitTimes.length).toFixed(1)
+            ? Math.round(this.waitTimes.reduce((a, b) => a + b, 0) / this.waitTimes.length)
             : 0;
 
         const maxWait = this.waitTimes.length > 0
-            ? Math.max(...this.waitTimes).toFixed(1)
+            ? Math.max(...this.waitTimes)
             : 0;
 
         return {
@@ -130,17 +150,30 @@ class ElevatorVisualizer {
     animate() {
         if (!this.isRunning) return;
 
-        const currentFloor = this.elevator.currentFloor;
-        if (this.elevator.requests instanceof Set) {
-            if (this.elevator.requests.has(currentFloor)) {
-                this.trackServed(currentFloor);
-            }
-        }
+       
+        const directionBeforeStep = this.elevator.direction;
 
         const result = this.elevator.step();
 
         if (result.served) {
-            this.trackServed(this.elevator.currentFloor);
+            this.trackServed(this.elevator.currentFloor, this.elevator.stepCount);
+
+            
+            if (this.requestSteps.has(this.elevator.currentFloor) &&
+                this.requestSteps.get(this.elevator.currentFloor).length > 0) {
+
+                
+                if (this.elevator.upRequests !== undefined) {
+                   
+                    const dir = (directionBeforeStep === 'UP' || directionBeforeStep === 'DOWN')
+                        ? directionBeforeStep
+                        : 'UP'; // Default to UP if was already IDLE
+                    this.elevator.addRequest(this.elevator.currentFloor, dir);
+                } else {
+                    // SCAN-style: only takes floor
+                    this.elevator.addRequest(this.elevator.currentFloor);
+                }
+            }
         }
 
         // Tegn EFTER step() så vi ser servicering
@@ -150,7 +183,10 @@ class ElevatorVisualizer {
             ? this.elevator.requests.size > 0
             : this.elevator.requestQueue?.length > 0;
 
-        if (hasRequests || continuousMode) {
+    
+        const hasTrackedRequests = this.requestSteps.size > 0;
+
+        if (hasRequests || hasTrackedRequests || continuousMode) {
             this.animationId = setTimeout(() => this.animate(), this.animationSpeed);
         } else {
             this.isRunning = false;
@@ -169,7 +205,7 @@ class ElevatorVisualizer {
         this.stop();
         this.waitTimes = [];
         this.servedCount = 0;
-        this.requestTimestamps.clear();
+        this.requestSteps.clear();
         this.elevator.reset();
         this.draw();
     }
@@ -192,20 +228,25 @@ const ScenarioGenerator = {
 
     rushhour: (numFloors = 10) => {
         const requests = [];
-        for (let i = 0; i < 25; i++) {
+
+        // Morning rush: Heavy upward traffic from lower floors
+        // 80% of traffic is people going UP from floors 1-4
+        for (let i = 0; i < 20; i++) {
             if (Math.random() < 0.8) {
-                const targetFloor = Math.floor(Math.random() * (numFloors - 1)) + 2;
-                requests.push({ floor: targetFloor, direction: 'UP', fromFloor: 1 });
+                // Morning commute: people on lower floors going UP
+                const startFloor = Math.floor(Math.random() * 4) + 1; // Floors 1-4
+                requests.push({ floor: startFloor, direction: 'UP' });
             } else {
-                const floor = Math.floor(Math.random() * numFloors) + 1;
-                const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-                requests.push({ floor, direction });
+                // Evening traffic or random: people on upper floors going DOWN
+                const startFloor = Math.floor(Math.random() * 4) + 7; // Floors 7-10
+                requests.push({ floor: startFloor, direction: 'DOWN' });
             }
         }
+
         return {
             requests,
             description: 'Rush Hour: Morning commute pattern',
-            detail: '25 requests - 80% upward from floor 1. Tests directional batching efficiency.'
+            detail: '20 requests - 80% upward from lower floors. Tests directional batching.'
         };
     },
 
@@ -282,13 +323,13 @@ function runScenario(scenarioName) {
 
     scenario.requests.forEach(req => {
         visualizers.rushhour.elevator.addRequest(req.floor, req.direction);
-        visualizers.rushhour.trackRequest(req.floor);
+        visualizers.rushhour.trackRequest(req.floor, visualizers.rushhour.elevator.stepCount);
 
         visualizers.scan.elevator.addRequest(req.floor);
-        visualizers.scan.trackRequest(req.floor);
+        visualizers.scan.trackRequest(req.floor, visualizers.scan.elevator.stepCount);
 
         visualizers.fcfs.elevator.addRequest(req.floor);
-        visualizers.fcfs.trackRequest(req.floor);
+        visualizers.fcfs.trackRequest(req.floor, visualizers.fcfs.elevator.stepCount);
     });
 
     Object.values(visualizers).forEach(v => v.start());
@@ -301,20 +342,20 @@ function runScenario(scenarioName) {
 }
 
 function addRandomRequests() {
-    const numRequests = Math.floor(Math.random() * 3) + 3;
+    const numRequests = Math.floor(Math.random() * 2) + 2; // 2-3 requests
 
     for (let i = 0; i < numRequests; i++) {
         const floor = Math.floor(Math.random() * 10) + 1;
         const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
 
         visualizers.rushhour.elevator.addRequest(floor, direction);
-        visualizers.rushhour.trackRequest(floor);
+        visualizers.rushhour.trackRequest(floor, visualizers.rushhour.elevator.stepCount);
 
         visualizers.scan.elevator.addRequest(floor);
-        visualizers.scan.trackRequest(floor);
+        visualizers.scan.trackRequest(floor, visualizers.scan.elevator.stepCount);
 
         visualizers.fcfs.elevator.addRequest(floor);
-        visualizers.fcfs.trackRequest(floor);
+        visualizers.fcfs.trackRequest(floor, visualizers.fcfs.elevator.stepCount);
     }
 }
 
@@ -322,7 +363,7 @@ function startContinuous() {
     if (!continuousInterval) {
         continuousInterval = setInterval(() => {
             addRandomRequests();
-        }, 2000);
+        }, 2000); // Every 2 seconds
     }
 }
 
@@ -385,8 +426,8 @@ function updateMetrics() {
         document.getElementById(`pending-${alg}`).textContent = pending;
 
         document.getElementById(`moves-${alg}`).textContent = metrics.totalMoves;
-        document.getElementById(`avgwait-${alg}`).textContent = metrics.avgWait + 's';
-        document.getElementById(`maxwait-${alg}`).textContent = metrics.maxWait + 's';
+        document.getElementById(`avgwait-${alg}`).textContent = metrics.avgWait + ' steps';
+        document.getElementById(`maxwait-${alg}`).textContent = metrics.maxWait + ' steps';
         document.getElementById(`served-${alg}`).textContent = metrics.served;
     });
 }

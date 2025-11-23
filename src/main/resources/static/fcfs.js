@@ -5,6 +5,7 @@ class FcfsElevator {
         this.requestQueue = [];
         this.totalMoves = 0;
         this.direction = 'IDLE';
+        this.stepCount = 0;
     }
 
     addRequest(floor) {
@@ -27,12 +28,10 @@ class FcfsElevator {
     }
 
     step() {
-        const dir = this.getCurrentDirection();
-        if (dir === 1) this.direction = 'UP';
-        else if (dir === -1) this.direction = 'DOWN';
-        else this.direction = 'IDLE';
+        this.stepCount++;
 
         if (this.requestQueue.length === 0) {
+            this.direction = 'IDLE';
             return {
                 floor: this.currentFloor,
                 action: 'idle',
@@ -44,35 +43,32 @@ class FcfsElevator {
 
         const targetFloor = this.requestQueue[0];
 
+    
+        if (this.currentFloor !== targetFloor) {
+            const direction = targetFloor > this.currentFloor ? 1 : -1;
+            this.currentFloor += direction;
+            this.totalMoves++;
+            this.direction = direction === 1 ? 'UP' : 'DOWN';
+        }
+
+        let served = false;
         if (this.currentFloor === targetFloor) {
             this.requestQueue.shift();
+            served = true;
 
             const nextDir = this.getCurrentDirection();
             if (nextDir === 1) this.direction = 'UP';
             else if (nextDir === -1) this.direction = 'DOWN';
             else this.direction = 'IDLE';
-
-            return {
-                floor: this.currentFloor,
-                action: 'serviced',
-                direction: this.direction.toLowerCase(),
-                remainingRequests: [...this.requestQueue],
-                served: true
-            };
         }
-
-        const direction = targetFloor > this.currentFloor ? 1 : -1;
-        this.currentFloor += direction;
-        this.totalMoves++;
-        this.direction = direction === 1 ? 'UP' : 'DOWN';
 
         return {
             floor: this.currentFloor,
-            action: 'moving',
-            direction: direction === 1 ? 'up' : 'down',
+            action: served ? 'serviced' : 'moving',
+            direction: this.direction.toLowerCase(),
             targetFloor: targetFloor,
             remainingRequests: [...this.requestQueue],
-            served: false
+            served: served
         };
     }
 
@@ -81,6 +77,7 @@ class FcfsElevator {
         this.requestQueue = [];
         this.totalMoves = 0;
         this.direction = 'IDLE';
+        this.stepCount = 0;
     }
 
     get requests() {
