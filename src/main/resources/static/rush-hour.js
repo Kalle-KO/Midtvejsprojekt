@@ -7,6 +7,7 @@ class RushHourElevator {
         this.upRequests = new Set();
         this.downRequests = new Set();
         this.totalMoves = 0;
+        this.stepCount = 0;
     }
 
     addRequest(floor, direction = null) {
@@ -18,10 +19,8 @@ class RushHourElevator {
             this.upRequests.add(floor);
         } else if (direction === 'DOWN') {
             this.downRequests.add(floor);
-        } else {
-            this.upRequests.add(floor);
-            this.downRequests.add(floor);
         }
+        
     }
 
     getNextFloor() {
@@ -30,7 +29,7 @@ class RushHourElevator {
         const relevantRequests = this.direction === 'UP' ? this.upRequests : this.downRequests;
 
         const floorsInDirection = Array.from(relevantRequests).filter(floor => {
-            return this.direction === 'UP' ? floor > this.currentFloor : floor < this.currentFloor;
+            return this.direction === 'UP' ? floor >= this.currentFloor : floor <= this.currentFloor;
         });
 
         if (floorsInDirection.length > 0) {
@@ -54,6 +53,8 @@ class RushHourElevator {
     }
 
     step() {
+        this.stepCount++;
+
         const nextFloor = this.getNextFloor();
 
         if (nextFloor === null) {
@@ -98,5 +99,6 @@ class RushHourElevator {
         this.upRequests.clear();
         this.downRequests.clear();
         this.totalMoves = 0;
+        this.stepCount = 0;
     }
 }
