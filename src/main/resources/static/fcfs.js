@@ -43,23 +43,34 @@ class FcfsElevator {
 
         const targetFloor = this.requestQueue[0];
 
-    
-        if (this.currentFloor !== targetFloor) {
-            const direction = targetFloor > this.currentFloor ? 1 : -1;
-            this.currentFloor += direction;
-            this.totalMoves++;
-            this.direction = direction === 1 ? 'UP' : 'DOWN';
-        }
-
+        // First check if we're already at the target floor - serve it immediately
         let served = false;
         if (this.currentFloor === targetFloor) {
             this.requestQueue.shift();
             served = true;
 
-            const nextDir = this.getCurrentDirection();
-            if (nextDir === 1) this.direction = 'UP';
-            else if (nextDir === -1) this.direction = 'DOWN';
-            else this.direction = 'IDLE';
+            // Update direction for next request if any
+            if (this.requestQueue.length === 0) {
+                this.direction = 'IDLE';
+                return {
+                    floor: this.currentFloor,
+                    action: 'serviced',
+                    direction: 'idle',
+                    remainingRequests: [],
+                    served: true
+                };
+            } else {
+                const nextDir = this.getCurrentDirection();
+                if (nextDir === 1) this.direction = 'UP';
+                else if (nextDir === -1) this.direction = 'DOWN';
+                else this.direction = 'IDLE';
+            }
+        } else {
+            // Move towards target
+            const direction = targetFloor > this.currentFloor ? 1 : -1;
+            this.currentFloor += direction;
+            this.totalMoves++;
+            this.direction = direction === 1 ? 'UP' : 'DOWN';
         }
 
         return {
