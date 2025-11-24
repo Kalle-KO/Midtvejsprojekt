@@ -223,14 +223,13 @@
 <header>
     <h1>🏢 Elevator Algorithm Comparison</h1>
     <p>Datastrukturer og Algoritmer - Midtvejsprojekt 2025</p>
-    <p>Comparative evaluation of FCFS, SCAN, and Rush Hour Optimization algorithms</p>
 </header>
 
 <div class="scenario-controls">
     <h2>Test Scenarios</h2>
     <div class="scenario-buttons">
         <button onclick="runScenario('baseline')">Baseline Test</button>
-        <button onclick="runScenario('rushhour')">Rush Hour (Morning Commute)</button>
+        <button onclick="runScenario('rushhour')">Morning Rush hour with extras</button>
         <button onclick="runScenario('floorhogging')">Floor Hogging (Short Trips)</button>
         <button class="stop" onclick="stopAll()">Stop All</button>
     </div>
@@ -250,45 +249,44 @@
 
     <div class="scenario-description" id="scenarioDescription">
         <h4>Select a scenario to begin</h4>
-        <p>Each scenario is designed to test different aspects of elevator algorithms. Choose one above to start the comparison.</p>
     </div>
 </div>
 
 <div class="comparison-container">
-    <!-- Rush Hour Panel -->
-    <div class="algorithm-panel rushhour">
-        <h3>Rush Hour Optimization</h3>
+    <!-- SSTF Panel -->
+    <div class="algorithm-panel sstf">
+        <h3>SSTF (Shortest Seek Time First)</h3>
         <div class="canvas-container">
-            <canvas id="canvas-rushhour" width="250" height="400"></canvas>
+            <canvas id="canvas-sstf" width="250" height="400"></canvas>
         </div>
         <div class="metrics">
             <div class="metric-row">
                 <span class="metric-label">Current Floor:</span>
-                <span class="metric-value" id="floor-rushhour">1</span>
+                <span class="metric-value" id="floor-sstf">1</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Direction:</span>
-                <span class="metric-value" id="direction-rushhour">UP</span>
+                <span class="metric-value" id="direction-sstf">IDLE</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Pending Requests:</span>
-                <span class="metric-value" id="pending-rushhour">0</span>
+                <span class="metric-value" id="pending-sstf">0</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Total Moves:</span>
-                <span class="metric-value" id="moves-rushhour">0</span>
+                <span class="metric-value" id="moves-sstf">0</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Avg Wait:</span>
-                <span class="metric-value" id="avgwait-rushhour">0 steps</span>
+                <span class="metric-value" id="avgwait-sstf">0 steps</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Max Wait:</span>
-                <span class="metric-value" id="maxwait-rushhour">0 steps</span>
+                <span class="metric-value" id="maxwait-sstf">0 steps</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Requests Served:</span>
-                <span class="metric-value" id="served-rushhour">0</span>
+                <span class="metric-value" id="served-sstf">0</span>
             </div>
         </div>
     </div>
@@ -370,7 +368,7 @@
     </div>
 </div>
 
-<script src="rush-hour.js"></script>
+<script src="sstf.js"></script>
 <script src="scan.js"></script>
 <script src="fcfs.js"></script>
 <script src="comparison-engine.js"></script>

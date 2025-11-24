@@ -1,8 +1,8 @@
-class ScanElevator {
+class SstfElevator {
     constructor(numFloors = 10) {
         this.numFloors = numFloors;
         this.currentFloor = 1;
-        this.direction = 'UP'; // 'UP', 'DOWN', or 'IDLE'
+        this.direction = 'IDLE';
         this.requestQueue = [];
         this.totalMoves = 0;
         this.stepCount = 0;
@@ -12,6 +12,24 @@ class ScanElevator {
         if (floor >= 1 && floor <= this.numFloors) {
             this.requestQueue.push(floor);
         }
+    }
+
+    findClosestFloor() {
+        if (this.requestQueue.length === 0) return null;
+
+        let closestFloor = this.requestQueue[0];
+        let minDistance = Math.abs(this.currentFloor - closestFloor);
+
+        for (let i = 1; i < this.requestQueue.length; i++) {
+            const floor = this.requestQueue[i];
+            const distance = Math.abs(this.currentFloor - floor);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestFloor = floor;
+            }
+        }
+
+        return closestFloor;
     }
 
     step() {
@@ -29,62 +47,49 @@ class ScanElevator {
             };
         }
 
-        // Ensure direction is valid (not IDLE) when we have requests
-        if (this.direction === 'IDLE') {
-            this.direction = 'UP'; // Default to UP
-        }
-
         // Check if current floor has a request - serve it
         const currentFloorIndex = this.requestQueue.indexOf(this.currentFloor);
         if (currentFloorIndex !== -1) {
             // Serve one guest
             this.requestQueue.splice(currentFloorIndex, 1);
 
-            // After serving, always return - don't move in same step
+            // After serving, return - don't move in same step
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
-                direction: this.requestQueue.length === 0 ? 'idle' : this.direction.toLowerCase(),
+                direction: this.requestQueue.length === 0 ? 'idle' : this.direction,
                 remainingRequests: [...this.requestQueue],
                 served: true
             };
         }
 
-        // No serve this step - determine direction and move
-        // Find requests ahead in current direction
-        const requestsAhead = this.requestQueue.filter(floor => {
-            if (this.direction === 'UP') return floor > this.currentFloor;
-            if (this.direction === 'DOWN') return floor < this.currentFloor;
-            return false;
-        });
+        // Find closest requested floor
+        const closestFloor = this.findClosestFloor();
 
-        // If no requests ahead, reverse direction
-        if (requestsAhead.length === 0) {
-            this.direction = this.direction === 'UP' ? 'DOWN' : 'UP';
+        if (closestFloor === null) {
+            this.direction = 'IDLE';
+            return {
+                floor: this.currentFloor,
+                action: 'idle',
+                direction: 'idle',
+                remainingRequests: [],
+                served: false
+            };
         }
 
-        // Prevent stuck at boundaries: if still no valid direction, find any request
-        if (this.direction === 'IDLE' && this.requestQueue.length > 0) {
-            const anyFloor = this.requestQueue[0];
-            this.direction = anyFloor > this.currentFloor ? 'UP' : anyFloor < this.currentFloor ? 'DOWN' : 'UP';
-        }
-
-        // Move one floor
-        if (this.direction === 'UP') {
+        // Move one step toward closest floor
+        if (closestFloor > this.currentFloor) {
             this.currentFloor++;
-        } else if (this.direction === 'DOWN') {
-            this.currentFloor--;
-        }
-        this.totalMoves++;
-
-        // Boundary check
-        if (this.currentFloor < 1) {
-            this.currentFloor = 1;
             this.direction = 'UP';
-        } else if (this.currentFloor > this.numFloors) {
-            this.currentFloor = this.numFloors;
+        } else if (closestFloor < this.currentFloor) {
+            this.currentFloor--;
             this.direction = 'DOWN';
+        } else {
+            // Should not happen (we already checked current floor)
+            this.direction = 'IDLE';
         }
+
+        this.totalMoves++;
 
         return {
             floor: this.currentFloor,
@@ -97,7 +102,7 @@ class ScanElevator {
 
     reset() {
         this.currentFloor = 1;
-        this.direction = 'UP';
+        this.direction = 'IDLE';
         this.requestQueue = [];
         this.totalMoves = 0;
         this.stepCount = 0;
