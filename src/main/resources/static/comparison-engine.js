@@ -340,7 +340,7 @@ const ScenarioGenerator = {
         return {
             requests,
             description: '🏢 Floor Hogging',
-            detail: 'Multiple short trips: 5x (1→5), 7x short hops from floor 5. SSTF camps, SCAN sweeps.',
+            detail: 'Multiple short trips: 5x (1→5), 7x short hops from floor 5.',
             pattern: 'floorhogging'
         };
     }
