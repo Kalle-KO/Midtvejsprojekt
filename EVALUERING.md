@@ -85,6 +85,7 @@ SCAN er den mest anvendte elevator-algoritme i praksis fordi den er:
 - **Effektiv** - Minimerer unødvendig bevægelse ved at servicere alle anmodninger i samme retning
 
 I vores tests viser SCAN sig at være den mest konsistente og pålidelige algoritme på tværs af de tre scenarier. Den har ikke de absolut laveste gennemsnitstal, men den har konsekvent de laveste max wait times, hvilket viser at ingen gæster bliver "glemt". SCAN's styrke ligger i forudsigeligheden og følelsen af fairhed. Alle etager bliver besøgt.
+
 ---
 
 ## SSTF - Shortest Seek Time First
