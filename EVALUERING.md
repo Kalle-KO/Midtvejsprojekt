@@ -142,7 +142,7 @@ FCFS er som forventet markant dårligere end både SSTF og SCAN. I baseline test
 
 ## Projektets begrænsninger:
 
-Vores simulation har ikke destinations (dropoff floors), hvilket betyder at gæster "forsvinder" når de bliver samlet op. I en rigtig elevator ville dette ændre algoritmernes opførsel betydeligt - især SSTF ville kunne få endnu større problemer med at beslutte om den skal prioritere nye pickups eller færdiggøre eksisterende passagerers rejser. SCAN ville forblive konsistent da den servicerer både pickups og dropoffs under sit sweep.
+Vores simulation har ikke destinations (dropoff floors), hvilket betyder at gæster "forsvinder" når de bliver samlet op. I en rigtig elevator ville dette ændre algoritmernes opførsel betydeligt. Især SSTF ville kunne få problemer med at beslutte om den skal prioritere nye pickups eller færdiggøre eksisterende passagerers rejser. SCAN ville forblive konsistent da den servicerer både pickups og dropoffs under sit sweep.
 
 Alle vores tests er kørt i continuous mode til præcis 100 servicerede gæster for at sikre fair sammenligning. Dette giver os dynamiske scenarier hvor algoritmernes forskelle kommer tydeligt frem, i statiske scenarier hvor alle anmodninger er kendt på forhånd ville SSTF og SCAN præstere næsten identisk.
 
