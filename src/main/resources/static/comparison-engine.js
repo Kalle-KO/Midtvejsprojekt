@@ -256,7 +256,7 @@ const ScenarioGenerator = {
         return {
             requests,
             description: '🏢 Floor Hogging',
-            detail: 'Multiple requests to popular floors: 5x floor 1 (lobby), 7x floor 5 (office), 3x others. SSTF camps at floor 5. SCAN sweeps serve hot spots during each pass. Watch clustering behavior!',
+            detail: 'Multiple requests to popular floors',
             pattern: 'floorhogging'
         };
     }
