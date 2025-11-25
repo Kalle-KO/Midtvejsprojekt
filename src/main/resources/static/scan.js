@@ -3,76 +3,120 @@ class ScanElevator {
         this.numFloors = numFloors;
         this.currentFloor = 1;
         this.direction = 'UP'; // 'UP', 'DOWN', or 'IDLE'
-        this.requestQueue = [];
+        this.pickupQueue = [];
+        this.onboardQueue = [];
+        this.nextRequestId = 0;
         this.totalMoves = 0;
         this.stepCount = 0;
     }
 
-    addRequest(floor) {
-        if (floor >= 1 && floor <= this.numFloors) {
-            this.requestQueue.push(floor);
+    addRequest(pickup, destination) {
+        // Smart validation
+        if (pickup === destination) {
+            console.warn(`Invalid request: pickup and destination are the same (floor ${pickup})`);
+            return false;
         }
+
+        if (pickup < 1 || pickup > this.numFloors ||
+            destination < 1 || destination > this.numFloors) {
+            console.warn(`Invalid request: floors out of range`);
+            return false;
+        }
+
+        this.pickupQueue.push({
+            floor: pickup,
+            destination: destination,
+            requestId: this.nextRequestId++
+        });
+        return true;
+    }
+
+    getRequestsInDirection() {
+        const pickups = this.pickupQueue.filter(req => {
+            if (this.direction === 'UP') return req.floor >= this.currentFloor;
+            if (this.direction === 'DOWN') return req.floor <= this.currentFloor;
+            return true;
+        });
+
+        const dropoffs = this.onboardQueue.filter(req => {
+            if (this.direction === 'UP') return req.destination >= this.currentFloor;
+            if (this.direction === 'DOWN') return req.destination <= this.currentFloor;
+            return true;
+        });
+
+        return { pickups, dropoffs, hasAny: pickups.length > 0 || dropoffs.length > 0 };
     }
 
     step() {
         this.stepCount++;
 
-        // No requests - idle
-        if (this.requestQueue.length === 0) {
+        if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
             this.direction = 'IDLE';
             return {
                 floor: this.currentFloor,
                 action: 'idle',
                 direction: 'idle',
-                remainingRequests: [],
+                remainingPickups: [],
+                remainingOnboard: [],
                 served: false
             };
         }
 
-        // Ensure direction is valid (not IDLE) when we have requests
+        // Ensure direction is set
         if (this.direction === 'IDLE') {
-            this.direction = 'UP'; // Default to UP
+            this.direction = 'UP';
         }
 
-        // Check if current floor has a request - serve it
-        const currentFloorIndex = this.requestQueue.indexOf(this.currentFloor);
-        if (currentFloorIndex !== -1) {
-            // Serve one guest
-            this.requestQueue.splice(currentFloorIndex, 1);
+        // Check for pickups/dropoffs at current floor
+        let served = false;
+        let servedType = null;
 
-            // After serving, always return - don't move in same step
+        // First, handle drop-offs (passengers exiting)
+        const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
+        if (dropoffIdx !== -1) {
+            this.onboardQueue.splice(dropoffIdx, 1);
+            served = true;
+            servedType = 'dropoff';
+        }
+
+        // Then, handle pickups (new passengers boarding)
+        if (!served) {
+            const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+            if (pickupIdx !== -1) {
+                const req = this.pickupQueue.splice(pickupIdx, 1)[0];
+                this.onboardQueue.push({
+                    destination: req.destination,
+                    requestId: req.requestId
+                });
+                served = true;
+                servedType = 'pickup';
+            }
+        }
+
+        if (served) {
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
-                direction: this.requestQueue.length === 0 ? 'idle' : this.direction.toLowerCase(),
-                remainingRequests: [...this.requestQueue],
-                served: true
+                direction: this.direction.toLowerCase(),
+                remainingPickups: [...this.pickupQueue],
+                remainingOnboard: [...this.onboardQueue],
+                served: true,
+                servedType: servedType
             };
         }
 
-        // No serve this step - determine direction and move
-        // Find requests ahead in current direction
-        const requestsAhead = this.requestQueue.filter(floor => {
-            if (this.direction === 'UP') return floor > this.currentFloor;
-            if (this.direction === 'DOWN') return floor < this.currentFloor;
-            return false;
-        });
+        // No service at current floor - check direction
+        const { hasAny } = this.getRequestsInDirection();
 
-        // If no requests ahead, reverse direction
-        if (requestsAhead.length === 0) {
+        if (!hasAny) {
+            // Reverse direction
             this.direction = this.direction === 'UP' ? 'DOWN' : 'UP';
-        }
-
-        // Prevent stuck at boundaries: if still no valid direction, find any request
-        if (this.direction === 'IDLE' && this.requestQueue.length > 0) {
-            const anyFloor = this.requestQueue[0];
-            this.direction = anyFloor > this.currentFloor ? 'UP' : anyFloor < this.currentFloor ? 'DOWN' : 'UP';
         }
 
         // Move one floor
         if (this.direction === 'UP') {
             this.currentFloor++;
-        } else if (this.direction === 'DOWN') {
+        } else {
             this.currentFloor--;
         }
         this.totalMoves++;
@@ -90,7 +134,8 @@ class ScanElevator {
             floor: this.currentFloor,
             action: 'moving',
             direction: this.direction.toLowerCase(),
-            remainingRequests: [...this.requestQueue],
+            remainingPickups: [...this.pickupQueue],
+            remainingOnboard: [...this.onboardQueue],
             served: false
         };
     }
@@ -98,12 +143,18 @@ class ScanElevator {
     reset() {
         this.currentFloor = 1;
         this.direction = 'UP';
-        this.requestQueue = [];
+        this.pickupQueue = [];
+        this.onboardQueue = [];
+        this.nextRequestId = 0;
         this.totalMoves = 0;
         this.stepCount = 0;
     }
 
     get requests() {
-        return new Set(this.requestQueue);
+        // Return combined set of pickup floors and destinations
+        const allFloors = new Set();
+        this.pickupQueue.forEach(req => allFloors.add(req.floor));
+        this.onboardQueue.forEach(req => allFloors.add(req.destination));
+        return allFloors;
     }
 }
