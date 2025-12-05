@@ -11,7 +11,6 @@ class FcfsElevator {
     }
 
     addRequest(pickup, destination) {
-        // Smart validation
         if (pickup === destination) {
             console.warn(`Invalid request: pickup and destination are the same (floor ${pickup})`);
             return false;
@@ -32,32 +31,27 @@ class FcfsElevator {
     }
 
     getCombinedQueue() {
-        // Merge pickups and onboard drop-offs in STRICT order by requestId (FCFS)
         const combined = [];
 
-        // Add all pickups with their original requestId order
         this.pickupQueue.forEach(req => {
             combined.push({
                 floor: req.floor,
                 type: 'pickup',
                 destination: req.destination,
                 requestId: req.requestId,
-                sortKey: req.requestId * 2 // Even numbers for pickups
+                sortKey: req.requestId * 2
             });
         });
 
-        // Add all onboard destinations
-        // Drop-offs should happen right after their pickup
         this.onboardQueue.forEach(req => {
             combined.push({
                 floor: req.destination,
                 type: 'dropoff',
                 requestId: req.requestId,
-                sortKey: req.requestId * 2 + 1 // Odd numbers right after pickups
+                sortKey: req.requestId * 2 + 1
             });
         });
 
-        // Sort by sortKey to maintain FCFS order: pickup0, dropoff0, pickup1, dropoff1, etc.
         combined.sort((a, b) => a.sortKey - b.sortKey);
 
         return combined;
@@ -83,45 +77,58 @@ class FcfsElevator {
         const nextRequest = combined[0];
         const targetFloor = nextRequest.floor;
 
-        // Check if at target floor
+        // Check if at target floor - serve ALL passengers here
         if (this.currentFloor === targetFloor) {
-            if (nextRequest.type === 'pickup') {
-                // Board passenger
-                const pickupIdx = this.pickupQueue.findIndex(r => r.requestId === nextRequest.requestId);
-                if (pickupIdx !== -1) {
-                    const req = this.pickupQueue.splice(pickupIdx, 1)[0];
-                    this.onboardQueue.push({
-                        destination: req.destination,
-                        requestId: req.requestId
-                    });
-                }
+            let servedCount = 0;
+            let servedTypes = [];
 
-                return {
-                    floor: this.currentFloor,
-                    action: 'serviced',
-                    direction: this.direction.toLowerCase(),
-                    remainingPickups: [...this.pickupQueue],
-                    remainingOnboard: [...this.onboardQueue],
-                    served: true,
-                    servedType: 'pickup'
-                };
-            } else {
-                // Drop off passenger
-                const onboardIdx = this.onboardQueue.findIndex(r => r.requestId === nextRequest.requestId);
-                if (onboardIdx !== -1) {
-                    this.onboardQueue.splice(onboardIdx, 1);
-                }
-
-                return {
-                    floor: this.currentFloor,
-                    action: 'serviced',
-                    direction: this.direction.toLowerCase(),
-                    remainingPickups: [...this.pickupQueue],
-                    remainingOnboard: [...this.onboardQueue],
-                    served: true,
-                    servedType: 'dropoff'
-                };
+            // FIRST: Drop off ALL passengers for this floor
+            let dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
+            while (dropoffIdx !== -1) {
+                this.onboardQueue.splice(dropoffIdx, 1);
+                servedCount++;
+                servedTypes.push('dropoff');
+                dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
             }
+
+            // THEN: Pick up ALL passengers waiting at this floor
+            let pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+            while (pickupIdx !== -1) {
+                const req = this.pickupQueue.splice(pickupIdx, 1)[0];
+                this.onboardQueue.push({
+                    destination: req.destination,
+                    requestId: req.requestId
+                });
+                servedCount++;
+                servedTypes.push('pickup');
+                pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+            }
+
+            // Update direction for next destination
+            const newCombined = this.getCombinedQueue();
+            if (newCombined.length === 0) {
+                this.direction = 'IDLE';
+            } else {
+                const nextFloor = newCombined[0].floor;
+                if (nextFloor > this.currentFloor) {
+                    this.direction = 'UP';
+                } else if (nextFloor < this.currentFloor) {
+                    this.direction = 'DOWN';
+                } else {
+                    this.direction = 'IDLE';
+                }
+            }
+
+            return {
+                floor: this.currentFloor,
+                action: 'serviced',
+                direction: this.direction.toLowerCase(),
+                remainingPickups: [...this.pickupQueue],
+                remainingOnboard: [...this.onboardQueue],
+                served: true,
+                servedCount: servedCount,
+                servedTypes: servedTypes
+            };
         }
 
         // Move toward target
@@ -152,7 +159,6 @@ class FcfsElevator {
     }
 
     get requests() {
-        // Return combined set of pickup floors and destinations
         const allFloors = new Set();
         this.pickupQueue.forEach(req => allFloors.add(req.floor));
         this.onboardQueue.forEach(req => allFloors.add(req.destination));
