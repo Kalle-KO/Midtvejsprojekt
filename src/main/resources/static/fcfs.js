@@ -60,56 +60,41 @@ class FcfsElevator {
     step() {
         this.stepCount++;
 
-        const combined = this.getCombinedQueue();
+        // Check if there are ANY requests at current floor FIRST (priority)
+        // This makes elevator "camp" at floor until all are served
+        let served = false;
+        let servedType = null;
 
-        if (combined.length === 0) {
-            this.direction = 'IDLE';
-            return {
-                floor: this.currentFloor,
-                action: 'idle',
-                direction: 'idle',
-                remainingPickups: [],
-                remainingOnboard: [],
-                served: false
-            };
+        // FIRST: Try to drop off ONE passenger at current floor
+        const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
+        if (dropoffIdx !== -1) {
+            this.onboardQueue.splice(dropoffIdx, 1);
+            served = true;
+            servedType = 'dropoff';
         }
 
-        const nextRequest = combined[0];
-        const targetFloor = nextRequest.floor;
-
-        // Check if at target floor - serve ALL passengers here
-        if (this.currentFloor === targetFloor) {
-            let servedCount = 0;
-            let servedTypes = [];
-
-            // FIRST: Drop off ALL passengers for this floor
-            let dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
-            while (dropoffIdx !== -1) {
-                this.onboardQueue.splice(dropoffIdx, 1);
-                servedCount++;
-                servedTypes.push('dropoff');
-                dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
-            }
-
-            // THEN: Pick up ALL passengers waiting at this floor
-            let pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
-            while (pickupIdx !== -1) {
+        // THEN: If no dropoff, try to pick up ONE passenger at current floor
+        if (!served) {
+            const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+            if (pickupIdx !== -1) {
                 const req = this.pickupQueue.splice(pickupIdx, 1)[0];
                 this.onboardQueue.push({
                     destination: req.destination,
                     requestId: req.requestId
                 });
-                servedCount++;
-                servedTypes.push('pickup');
-                pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+                served = true;
+                servedType = 'pickup';
             }
+        }
 
-            // Update direction for next destination
-            const newCombined = this.getCombinedQueue();
-            if (newCombined.length === 0) {
+        // If we served someone, stay at current floor and return
+        if (served) {
+            // Update direction for display purposes
+            const combined = this.getCombinedQueue();
+            if (combined.length === 0) {
                 this.direction = 'IDLE';
             } else {
-                const nextFloor = newCombined[0].floor;
+                const nextFloor = combined[0].floor;
                 if (nextFloor > this.currentFloor) {
                     this.direction = 'UP';
                 } else if (nextFloor < this.currentFloor) {
@@ -126,10 +111,27 @@ class FcfsElevator {
                 remainingPickups: [...this.pickupQueue],
                 remainingOnboard: [...this.onboardQueue],
                 served: true,
-                servedCount: servedCount,
-                servedTypes: servedTypes
+                servedType: servedType
             };
         }
+
+        // No one to serve at current floor - check if we need to move
+        const combined = this.getCombinedQueue();
+
+        if (combined.length === 0) {
+            this.direction = 'IDLE';
+            return {
+                floor: this.currentFloor,
+                action: 'idle',
+                direction: 'idle',
+                remainingPickups: [],
+                remainingOnboard: [],
+                served: false
+            };
+        }
+
+        const nextRequest = combined[0];
+        const targetFloor = nextRequest.floor;
 
         // Move toward target
         const direction = targetFloor > this.currentFloor ? 1 : -1;

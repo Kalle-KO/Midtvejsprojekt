@@ -9,7 +9,7 @@ class ElevatorVisualizer {
         this.animationSpeed = 300;
         this.isRunning = false;
 
-        this.requestSteps = new Map(); // Map<floor, Array<stepNumber>>
+        this.requestSteps = new Map();
         this.waitTimes = [];
         this.servedCount = 0;
     }
@@ -25,6 +25,7 @@ class ElevatorVisualizer {
         const shaftX = width / 2 - 25;
         const shaftWidth = 50;
 
+        // Draw floor lines and numbers
         ctx.strokeStyle = '#ddd';
         ctx.lineWidth = 1;
         for (let i = 0; i <= this.numFloors; i++) {
@@ -39,16 +40,19 @@ class ElevatorVisualizer {
             ctx.fillText(String(i + 1), shaftX - 35, y + 4);
         }
 
+        // Draw elevator shaft
         ctx.strokeStyle = '#999';
         ctx.lineWidth = 2;
         ctx.strokeRect(shaftX, 20, shaftWidth, height - 40);
 
         let currentFloor = this.elevator.currentFloor;
 
+        // Draw elevator box
         const elevatorY = height - 20 - ((currentFloor - 1) * floorHeight) - floorHeight + 8;
         ctx.fillStyle = this.color;
         ctx.fillRect(shaftX + 4, elevatorY, shaftWidth - 8, floorHeight - 16);
 
+        // Draw direction arrow
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px sans-serif';
         let arrow = '◆';
@@ -61,7 +65,39 @@ class ElevatorVisualizer {
         ctx.fillText(arrow, shaftX + shaftWidth / 2, elevatorY + floorHeight / 2 + 2);
         ctx.textAlign = 'left';
 
+        // Draw passengers INSIDE elevator (onboard)
+        if (this.elevator.onboardQueue && this.elevator.onboardQueue.length > 0) {
+            const onboardCount = this.elevator.onboardQueue.length;
+            const guestRadius = 4;
+            const spacing = 8;
+            const startX = shaftX + 8;
+            const startY = elevatorY + floorHeight - 20;
+            const maxPerRow = 4;
 
+            for (let i = 0; i < Math.min(onboardCount, 12); i++) {
+                const row = Math.floor(i / maxPerRow);
+                const col = i % maxPerRow;
+                const xPos = startX + (col * spacing);
+                const yPos = startY + (row * spacing);
+
+                // Draw onboard guest (blue)
+                ctx.fillStyle = '#2196F3';
+                ctx.beginPath();
+                ctx.arc(xPos, yPos, guestRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#1976D2';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            if (onboardCount > 12) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.fillText(`+${onboardCount - 12}`, startX + (maxPerRow * spacing) + 2, startY + 5);
+            }
+        }
+
+        // Draw waiting passengers on floors (pickup queue)
         const floorCounts = new Map();
         this.requestSteps.forEach((steps, floor) => {
             floorCounts.set(floor, steps.length);
@@ -82,7 +118,7 @@ class ElevatorVisualizer {
                 const xPos = startX + (col * horizontalSpacing);
                 const yPos = floorY - 15 + (row * verticalSpacing);
 
-                // Draw guest as filled circle with outline
+                // Draw waiting guest (orange)
                 ctx.fillStyle = '#FF5722';
                 ctx.beginPath();
                 ctx.arc(xPos, yPos, guestRadius, 0, Math.PI * 2);
@@ -111,13 +147,11 @@ class ElevatorVisualizer {
         if (this.requestSteps.has(floor)) {
             const steps = this.requestSteps.get(floor);
             if (steps.length > 0) {
-                // Serve the oldest request (FIFO)
                 const requestStep = steps.shift();
                 const waitTime = currentStep - requestStep;
                 this.waitTimes.push(waitTime);
                 this.servedCount++;
 
-                // Remove floor from map if no more requests
                 if (steps.length === 0) {
                     this.requestSteps.delete(floor);
                 }
@@ -152,28 +186,17 @@ class ElevatorVisualizer {
 
         const result = this.elevator.step();
 
-        // Track each served request
         if (result.served) {
-            // Check if elevator returned servedCount (for optimized FCFS)
-            const count = result.servedCount || 1;
-
-            // Track each served guest
-            for (let i = 0; i < count; i++) {
-                this.trackServed(this.elevator.currentFloor, this.elevator.stepCount);
-            }
+            this.trackServed(this.elevator.currentFloor, this.elevator.stepCount);
         }
 
-        // Draw after step
         this.draw();
 
-        // Check if elevator has requests (support different elevator types)
         let hasRequests = false;
         if (this.elevator.pickupQueue !== undefined) {
-            // New system with pickup/dropoff
             hasRequests = this.elevator.pickupQueue.length > 0 ||
                 this.elevator.onboardQueue.length > 0;
         } else if (this.elevator.requestQueue !== undefined) {
-            // Old system (if any still use it)
             hasRequests = this.elevator.requestQueue.length > 0;
         }
 
@@ -206,12 +229,10 @@ class ElevatorVisualizer {
 
 const ScenarioGenerator = {
     baseline: (numFloors = 10) => {
-        // BALANCED: Random requests across all floors
         const requests = [];
         for (let i = 0; i < 20; i++) {
             const pickup = Math.floor(Math.random() * numFloors) + 1;
             let destination = Math.floor(Math.random() * numFloors) + 1;
-            // Ensure pickup != destination
             while (destination === pickup) {
                 destination = Math.floor(Math.random() * numFloors) + 1;
             }
@@ -227,17 +248,14 @@ const ScenarioGenerator = {
     },
 
     rushhour: (numFloors = 10) => {
-        // BUILDING RUSH: Dense cluster at bottom going up
         const requests = [];
 
-        // Initial burst: Heavy traffic at floors 1-3 going to upper floors
         for (let i = 0; i < 10; i++) {
-            const pickup = Math.floor(Math.random() * 3) + 1; // Floors 1-3
-            const destination = Math.floor(Math.random() * 4) + 7; // Floors 7-10
+            const pickup = Math.floor(Math.random() * 3) + 1;
+            const destination = Math.floor(Math.random() * 4) + 7;
             requests.push({ pickup, destination });
         }
 
-        // Add a few mid-level requests
         requests.push({ pickup: 5, destination: 9 });
         requests.push({ pickup: 6, destination: 2 });
 
@@ -250,25 +268,21 @@ const ScenarioGenerator = {
     },
 
     floorhogging: () => {
-        // FLOOR HOGGING: Multiple requests to same popular floors
         const requests = [];
 
-        // Floor 1 (Lobby) - 5 people going to various floors
         for (let i = 0; i < 5; i++) {
-            const destination = Math.floor(Math.random() * 5) + 5; // Floors 5-9
+            const destination = Math.floor(Math.random() * 5) + 5;
             requests.push({ pickup: 1, destination });
         }
 
-        // Floor 5 (Popular Office) - 7 people
         for (let i = 0; i < 7; i++) {
             const isGoingUp = Math.random() < 0.5;
             const destination = isGoingUp
-                ? Math.floor(Math.random() * 3) + 8  // Floors 8-10
-                : Math.floor(Math.random() * 3) + 1; // Floors 1-3
+                ? Math.floor(Math.random() * 3) + 8
+                : Math.floor(Math.random() * 3) + 1;
             requests.push({ pickup: 5, destination });
         }
 
-        // Scattered requests on other floors
         requests.push({ pickup: 3, destination: 7 });
         requests.push({ pickup: 8, destination: 2 });
         requests.push({ pickup: 10, destination: 4 });
@@ -276,7 +290,7 @@ const ScenarioGenerator = {
         return {
             requests,
             description: '🏢 Floor Hogging',
-            detail: 'Multiple requests to popular floors: 5x floor 1 (lobby), 7x floor 5 (office), 3x others. Tests handling of clustered demand.',
+            detail: 'Multiple requests to popular floors: 5x floor 1 (lobby), 7x floor 5 (office), 3x others.',
             pattern: 'floorhogging'
         };
     }
@@ -357,19 +371,18 @@ function runScenario(scenarioName) {
 }
 
 function addRandomRequests() {
-    const numRequests = Math.floor(Math.random() * 2) + 2; // 2-3 requests
+    const numRequests = Math.floor(Math.random() * 2) + 2;
 
     for (let i = 0; i < numRequests; i++) {
         let pickup, destination;
 
-        // Generate requests based on current scenario pattern
         if (currentScenarioPattern === 'rushhour') {
             if (Math.random() < 0.7) {
-                pickup = Math.floor(Math.random() * 3) + 8; // Floors 8-10
-                destination = Math.floor(Math.random() * 5) + 1; // Floors 1-5
+                pickup = Math.floor(Math.random() * 3) + 8;
+                destination = Math.floor(Math.random() * 5) + 1;
             } else {
-                pickup = Math.floor(Math.random() * 3) + 1; // Floors 1-3
-                destination = Math.floor(Math.random() * 4) + 7; // Floors 7-10
+                pickup = Math.floor(Math.random() * 3) + 1;
+                destination = Math.floor(Math.random() * 4) + 7;
             }
         } else if (currentScenarioPattern === 'floorhogging') {
             const rand = Math.random();

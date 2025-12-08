@@ -11,7 +11,6 @@ class SstfElevator {
     }
 
     addRequest(pickup, destination) {
-        // Smart validation
         if (pickup === destination) {
             console.warn(`Invalid request: pickup and destination are the same (floor ${pickup})`);
             return false;
@@ -39,7 +38,6 @@ class SstfElevator {
         let closestRequest = null;
         let minDistance = Infinity;
 
-        // Check all pickups
         this.pickupQueue.forEach(req => {
             const distance = Math.abs(this.currentFloor - req.floor);
             if (distance < minDistance) {
@@ -53,7 +51,6 @@ class SstfElevator {
             }
         });
 
-        // Check all drop-offs
         this.onboardQueue.forEach(req => {
             const distance = Math.abs(this.currentFloor - req.destination);
             if (distance < minDistance) {
@@ -84,11 +81,9 @@ class SstfElevator {
             };
         }
 
-        // Check if current floor has a request to serve
         let served = false;
         let servedType = null;
 
-        // Check for drop-off
         const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
         if (dropoffIdx !== -1) {
             this.onboardQueue.splice(dropoffIdx, 1);
@@ -96,7 +91,6 @@ class SstfElevator {
             servedType = 'dropoff';
         }
 
-        // Check for pickup
         if (!served) {
             const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
             if (pickupIdx !== -1) {
@@ -111,10 +105,15 @@ class SstfElevator {
         }
 
         if (served) {
+            // Check if done - set to IDLE
+            if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
+                this.direction = 'IDLE';
+            }
+
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
-                direction: this.direction,
+                direction: this.direction.toLowerCase(),
                 remainingPickups: [...this.pickupQueue],
                 remainingOnboard: [...this.onboardQueue],
                 served: true,
@@ -122,7 +121,6 @@ class SstfElevator {
             };
         }
 
-        // Find closest request
         const closest = this.findClosestRequest();
 
         if (!closest) {
@@ -137,7 +135,6 @@ class SstfElevator {
             };
         }
 
-        // Move toward closest
         if (closest.floor > this.currentFloor) {
             this.currentFloor++;
             this.direction = 'UP';
@@ -171,7 +168,6 @@ class SstfElevator {
     }
 
     get requests() {
-        // Return combined set of pickup floors and destinations
         const allFloors = new Set();
         this.pickupQueue.forEach(req => allFloors.add(req.floor));
         this.onboardQueue.forEach(req => allFloors.add(req.destination));

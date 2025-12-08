@@ -2,7 +2,7 @@ class ScanElevator {
     constructor(numFloors = 10) {
         this.numFloors = numFloors;
         this.currentFloor = 1;
-        this.direction = 'UP'; // 'UP', 'DOWN', or 'IDLE'
+        this.direction = 'UP';
         this.pickupQueue = [];
         this.onboardQueue = [];
         this.nextRequestId = 0;
@@ -11,7 +11,6 @@ class ScanElevator {
     }
 
     addRequest(pickup, destination) {
-        // Smart validation
         if (pickup === destination) {
             console.warn(`Invalid request: pickup and destination are the same (floor ${pickup})`);
             return false;
@@ -62,16 +61,13 @@ class ScanElevator {
             };
         }
 
-        // Ensure direction is set
         if (this.direction === 'IDLE') {
             this.direction = 'UP';
         }
 
-        // Check for pickups/dropoffs at current floor
         let served = false;
         let servedType = null;
 
-        // First, handle drop-offs (passengers exiting)
         const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
         if (dropoffIdx !== -1) {
             this.onboardQueue.splice(dropoffIdx, 1);
@@ -79,7 +75,6 @@ class ScanElevator {
             servedType = 'dropoff';
         }
 
-        // Then, handle pickups (new passengers boarding)
         if (!served) {
             const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
             if (pickupIdx !== -1) {
@@ -94,6 +89,11 @@ class ScanElevator {
         }
 
         if (served) {
+            // Check if done - set to IDLE
+            if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
+                this.direction = 'IDLE';
+            }
+
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
@@ -105,15 +105,12 @@ class ScanElevator {
             };
         }
 
-        // No service at current floor - check direction
         const { hasAny } = this.getRequestsInDirection();
 
         if (!hasAny) {
-            // Reverse direction
             this.direction = this.direction === 'UP' ? 'DOWN' : 'UP';
         }
 
-        // Move one floor
         if (this.direction === 'UP') {
             this.currentFloor++;
         } else {
@@ -121,7 +118,6 @@ class ScanElevator {
         }
         this.totalMoves++;
 
-        // Boundary check
         if (this.currentFloor < 1) {
             this.currentFloor = 1;
             this.direction = 'UP';
@@ -151,7 +147,6 @@ class ScanElevator {
     }
 
     get requests() {
-        // Return combined set of pickup floors and destinations
         const allFloors = new Set();
         this.pickupQueue.forEach(req => allFloors.add(req.floor));
         this.onboardQueue.forEach(req => allFloors.add(req.destination));
