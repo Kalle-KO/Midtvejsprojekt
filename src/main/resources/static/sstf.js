@@ -105,7 +105,6 @@ class SstfElevator {
         }
 
         if (served) {
-            // Check if done - set to IDLE
             if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
                 this.direction = 'IDLE';
             }

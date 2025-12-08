@@ -8,6 +8,7 @@ class FcfsElevator {
         this.totalMoves = 0;
         this.direction = 'IDLE';
         this.stepCount = 0;
+        this.servicingFloor = null;  // Track current servicing floor
     }
 
     addRequest(pickup, destination) {
@@ -60,66 +61,11 @@ class FcfsElevator {
     step() {
         this.stepCount++;
 
-        // Check if there are ANY requests at current floor FIRST (priority)
-        // This makes elevator "camp" at floor until all are served
-        let served = false;
-        let servedType = null;
-
-        // FIRST: Try to drop off ONE passenger at current floor
-        const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
-        if (dropoffIdx !== -1) {
-            this.onboardQueue.splice(dropoffIdx, 1);
-            served = true;
-            servedType = 'dropoff';
-        }
-
-        // THEN: If no dropoff, try to pick up ONE passenger at current floor
-        if (!served) {
-            const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
-            if (pickupIdx !== -1) {
-                const req = this.pickupQueue.splice(pickupIdx, 1)[0];
-                this.onboardQueue.push({
-                    destination: req.destination,
-                    requestId: req.requestId
-                });
-                served = true;
-                servedType = 'pickup';
-            }
-        }
-
-        // If we served someone, stay at current floor and return
-        if (served) {
-            // Update direction for display purposes
-            const combined = this.getCombinedQueue();
-            if (combined.length === 0) {
-                this.direction = 'IDLE';
-            } else {
-                const nextFloor = combined[0].floor;
-                if (nextFloor > this.currentFloor) {
-                    this.direction = 'UP';
-                } else if (nextFloor < this.currentFloor) {
-                    this.direction = 'DOWN';
-                } else {
-                    this.direction = 'IDLE';
-                }
-            }
-
-            return {
-                floor: this.currentFloor,
-                action: 'serviced',
-                direction: this.direction.toLowerCase(),
-                remainingPickups: [...this.pickupQueue],
-                remainingOnboard: [...this.onboardQueue],
-                served: true,
-                servedType: servedType
-            };
-        }
-
-        // No one to serve at current floor - check if we need to move
         const combined = this.getCombinedQueue();
 
         if (combined.length === 0) {
             this.direction = 'IDLE';
+            this.servicingFloor = null;
             return {
                 floor: this.currentFloor,
                 action: 'idle',
@@ -132,6 +78,71 @@ class FcfsElevator {
 
         const nextRequest = combined[0];
         const targetFloor = nextRequest.floor;
+
+        // Mark floor for servicing when we arrive at target
+        if (this.currentFloor === targetFloor && this.servicingFloor === null) {
+            this.servicingFloor = this.currentFloor;
+        }
+
+        // Service if we're on a marked servicing floor
+        if (this.servicingFloor === this.currentFloor) {
+            const hasDropoffHere = this.onboardQueue.some(r => r.destination === this.currentFloor);
+            const hasPickupHere = this.pickupQueue.some(r => r.floor === this.currentFloor);
+
+            if (hasDropoffHere || hasPickupHere) {
+                let served = false;
+                let servedType = null;
+
+                const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
+                if (dropoffIdx !== -1) {
+                    this.onboardQueue.splice(dropoffIdx, 1);
+                    served = true;
+                    servedType = 'dropoff';
+                }
+
+                if (!served) {
+                    const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+                    if (pickupIdx !== -1) {
+                        const req = this.pickupQueue.splice(pickupIdx, 1)[0];
+                        this.onboardQueue.push({
+                            destination: req.destination,
+                            requestId: req.requestId
+                        });
+                        served = true;
+                        servedType = 'pickup';
+                    }
+                }
+
+                if (served) {
+                    const newCombined = this.getCombinedQueue();
+                    if (newCombined.length === 0) {
+                        this.direction = 'IDLE';
+                    } else {
+                        const nextFloor = newCombined[0].floor;
+                        if (nextFloor > this.currentFloor) {
+                            this.direction = 'UP';
+                        } else if (nextFloor < this.currentFloor) {
+                            this.direction = 'DOWN';
+                        } else {
+                            this.direction = 'IDLE';
+                        }
+                    }
+
+                    return {
+                        floor: this.currentFloor,
+                        action: 'serviced',
+                        direction: this.direction.toLowerCase(),
+                        remainingPickups: [...this.pickupQueue],
+                        remainingOnboard: [...this.onboardQueue],
+                        served: true,
+                        servedType: servedType
+                    };
+                }
+            }
+
+            // No more people at this servicing floor - clear flag
+            this.servicingFloor = null;
+        }
 
         // Move toward target
         const direction = targetFloor > this.currentFloor ? 1 : -1;
@@ -158,6 +169,7 @@ class FcfsElevator {
         this.totalMoves = 0;
         this.direction = 'IDLE';
         this.stepCount = 0;
+        this.servicingFloor = null;
     }
 
     get requests() {
