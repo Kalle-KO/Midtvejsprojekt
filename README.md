@@ -1,9 +1,9 @@
 # The Elevator Simulator 
 
-Midtvejsprojekt 2025
+"Midtvejsprojekt 2025"
 Datastrukturer og Algoritmer
 
-**Gruppe:** Kalle og Magnus
+**Group:** Kalle & Magnus
 
 ## Description
 
