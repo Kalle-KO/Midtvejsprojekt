@@ -229,69 +229,85 @@ class ElevatorVisualizer {
 
 const ScenarioGenerator = {
     baseline: (numFloors = 10) => {
-        const requests = [];
-        for (let i = 0; i < 20; i++) {
-            const pickup = Math.floor(Math.random() * numFloors) + 1;
-            let destination = Math.floor(Math.random() * numFloors) + 1;
-            while (destination === pickup) {
-                destination = Math.floor(Math.random() * numFloors) + 1;
-            }
-            requests.push({ pickup, destination });
-        }
+        const totalGuests = 20;
+        const avgArrivalRate = 1500; // Average time between arrivals in ms
 
         return {
-            requests,
+            totalGuests,
+            avgArrivalRate,
             description: '⚖️ Balanced Random Traffic',
-            detail: '20 random requests. Baseline comparison',
-            pattern: 'random'
+            detail: `${totalGuests} guests arriving gradually at random intervals (avg ${avgArrivalRate}ms apart)`,
+            pattern: 'random',
+            generator: () => {
+                const pickup = Math.floor(Math.random() * numFloors) + 1;
+                let destination = Math.floor(Math.random() * numFloors) + 1;
+                while (destination === pickup) {
+                    destination = Math.floor(Math.random() * numFloors) + 1;
+                }
+                return { pickup, destination };
+            }
         };
     },
 
     rushhour: (numFloors = 10) => {
-        const requests = [];
-
-        for (let i = 0; i < 10; i++) {
-            const pickup = Math.floor(Math.random() * 3) + 1;
-            const destination = Math.floor(Math.random() * 4) + 7;
-            requests.push({ pickup, destination });
-        }
-
-        requests.push({ pickup: 5, destination: 9 });
-        requests.push({ pickup: 6, destination: 2 });
+        const totalGuests = 25;
+        const avgArrivalRate = 800; // Faster arrivals during rush hour
 
         return {
-            requests,
-            description: '🏢 Building Rush',
-            detail: 'Dense cluster at floors 1-3 going up. Tests morning commute pattern.',
-            pattern: 'rushhour'
+            totalGuests,
+            avgArrivalRate,
+            description: '🏢 Building Rush Hour',
+            detail: `${totalGuests} guests arriving rapidly (avg ${avgArrivalRate}ms apart). Heavy traffic from floors 1-3 going up`,
+            pattern: 'rushhour',
+            generator: () => {
+                if (Math.random() < 0.75) {
+                    // 75% rush hour pattern: low floors going up
+                    const pickup = Math.floor(Math.random() * 3) + 1;
+                    const destination = Math.floor(Math.random() * 4) + 7;
+                    return { pickup, destination };
+                } else {
+                    // 25% reverse traffic
+                    const pickup = Math.floor(Math.random() * 3) + 8;
+                    const destination = Math.floor(Math.random() * 3) + 1;
+                    return { pickup, destination };
+                }
+            }
         };
     },
 
-    floorhogging: () => {
-        const requests = [];
-
-        for (let i = 0; i < 5; i++) {
-            const destination = Math.floor(Math.random() * 5) + 5;
-            requests.push({ pickup: 1, destination });
-        }
-
-        for (let i = 0; i < 7; i++) {
-            const isGoingUp = Math.random() < 0.5;
-            const destination = isGoingUp
-                ? Math.floor(Math.random() * 3) + 8
-                : Math.floor(Math.random() * 3) + 1;
-            requests.push({ pickup: 5, destination });
-        }
-
-        requests.push({ pickup: 3, destination: 7 });
-        requests.push({ pickup: 8, destination: 2 });
-        requests.push({ pickup: 10, destination: 4 });
+    floorhogging: (numFloors = 10) => {
+        const totalGuests = 30;
+        const avgArrivalRate = 1200;
 
         return {
-            requests,
-            description: '🏢 Floor Hogging',
-            detail: 'Multiple requests to popular floors: 5x floor 1 (lobby), 7x floor 5 (office), 3x others.',
-            pattern: 'floorhogging'
+            totalGuests,
+            avgArrivalRate,
+            description: '🏢 Floor Hogging Pattern',
+            detail: `${totalGuests} guests with heavy concentration at popular floors (lobby & floor 5). Avg ${avgArrivalRate}ms between arrivals`,
+            pattern: 'floorhogging',
+            generator: () => {
+                const rand = Math.random();
+                if (rand < 0.4) {
+                    // 40% from lobby (floor 1) going up
+                    const destination = Math.floor(Math.random() * 5) + 5;
+                    return { pickup: 1, destination };
+                } else if (rand < 0.7) {
+                    // 30% from floor 5 going either up or down
+                    const isGoingUp = Math.random() < 0.5;
+                    const destination = isGoingUp
+                        ? Math.floor(Math.random() * 3) + 8
+                        : Math.floor(Math.random() * 3) + 1;
+                    return { pickup: 5, destination };
+                } else {
+                    // 30% random other floors
+                    const pickup = Math.floor(Math.random() * numFloors) + 1;
+                    let destination = Math.floor(Math.random() * numFloors) + 1;
+                    while (destination === pickup) {
+                        destination = Math.floor(Math.random() * numFloors) + 1;
+                    }
+                    return { pickup, destination };
+                }
+            }
         };
     }
 };
@@ -301,6 +317,9 @@ let updateInterval = null;
 let continuousMode = false;
 let continuousInterval = null;
 let currentScenarioPattern = 'random';
+let currentScenario = null;
+let guestsSpawned = 0;
+let rollingSpawnTimeouts = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     const numFloors = 10;
@@ -337,29 +356,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Generate exponentially distributed random intervals (Poisson process)
+function getNextArrivalDelay(avgRate) {
+    // Exponential distribution: -avgRate * ln(1 - U) where U is uniform random [0,1)
+    return -avgRate * Math.log(1 - Math.random());
+}
+
+function spawnGuest() {
+    if (!currentScenario || guestsSpawned >= currentScenario.totalGuests) {
+        return;
+    }
+
+    const req = currentScenario.generator();
+
+    visualizers.sstf.elevator.addRequest(req.pickup, req.destination);
+    visualizers.sstf.trackRequest(req.pickup, visualizers.sstf.elevator.stepCount);
+
+    visualizers.scan.elevator.addRequest(req.pickup, req.destination);
+    visualizers.scan.trackRequest(req.pickup, visualizers.scan.elevator.stepCount);
+
+    visualizers.fcfs.elevator.addRequest(req.pickup, req.destination);
+    visualizers.fcfs.trackRequest(req.pickup, visualizers.fcfs.elevator.stepCount);
+
+    guestsSpawned++;
+}
+
+// Schedule rolling spawn of remaining guests
+function scheduleRollingSpawns() {
+    let cumulativeDelay = 0;
+
+    // Schedule remaining guests
+    for (let i = guestsSpawned; i < currentScenario.totalGuests; i++) {
+        const delay = getNextArrivalDelay(currentScenario.avgArrivalRate);
+        cumulativeDelay += delay;
+
+        const timeoutId = setTimeout(() => {
+            spawnGuest();
+        }, cumulativeDelay);
+
+        rollingSpawnTimeouts.push(timeoutId);
+    }
+}
+
+// Clear all scheduled rolling spawns
+function clearRollingSpawns() {
+    rollingSpawnTimeouts.forEach(timeout => clearTimeout(timeout));
+    rollingSpawnTimeouts = [];
+}
+
 function runScenario(scenarioName) {
     stopContinuous();
+    clearRollingSpawns();
 
-    const scenario = ScenarioGenerator[scenarioName](10);
-    currentScenarioPattern = scenario.pattern || 'random';
+    // Load scenario
+    currentScenario = ScenarioGenerator[scenarioName](10);
+    currentScenarioPattern = currentScenario.pattern || 'random';
+    guestsSpawned = 0;
 
     document.getElementById('scenarioDescription').innerHTML = `
-        <h4>${scenario.description}</h4>
-        <p>${scenario.detail}</p>
+        <h4>${currentScenario.description}</h4>
+        <p>${currentScenario.detail}</p>
+        <p style="margin-top: 8px; color: #666; font-size: 13px;">
+            Starting with 3-5 pre-loaded guests, then ${currentScenario.totalGuests - 5} more arrive gradually using Poisson distribution
+        </p>
     `;
 
     Object.values(visualizers).forEach(v => v.reset());
 
-    scenario.requests.forEach(req => {
-        visualizers.sstf.elevator.addRequest(req.pickup, req.destination);
-        visualizers.sstf.trackRequest(req.pickup, visualizers.sstf.elevator.stepCount);
+    const initialGuests = Math.floor(Math.random() * 3) + 3; // 3-5 guests
+    for (let i = 0; i < Math.min(initialGuests, currentScenario.totalGuests); i++) {
+        spawnGuest();
+    }
 
-        visualizers.scan.elevator.addRequest(req.pickup, req.destination);
-        visualizers.scan.trackRequest(req.pickup, visualizers.scan.elevator.stepCount);
-
-        visualizers.fcfs.elevator.addRequest(req.pickup, req.destination);
-        visualizers.fcfs.trackRequest(req.pickup, visualizers.fcfs.elevator.stepCount);
-    });
+    scheduleRollingSpawns();
 
     Object.values(visualizers).forEach(v => v.start());
 
@@ -459,6 +528,7 @@ function stopAll() {
     }
 
     stopContinuous();
+    clearRollingSpawns();
 
     if (updateInterval) {
         clearInterval(updateInterval);
