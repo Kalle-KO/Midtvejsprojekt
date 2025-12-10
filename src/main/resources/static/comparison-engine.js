@@ -9,7 +9,7 @@ class ElevatorVisualizer {
         this.animationSpeed = 300;
         this.isRunning = false;
 
-        this.requestSteps = new Map(); // Map<floor, Array<stepNumber>>
+        this.requestSteps = new Map();
         this.waitTimes = [];
         this.servedCount = 0;
     }
@@ -25,6 +25,7 @@ class ElevatorVisualizer {
         const shaftX = width / 2 - 25;
         const shaftWidth = 50;
 
+        // Draw floor lines and numbers
         ctx.strokeStyle = '#ddd';
         ctx.lineWidth = 1;
         for (let i = 0; i <= this.numFloors; i++) {
@@ -39,19 +40,22 @@ class ElevatorVisualizer {
             ctx.fillText(String(i + 1), shaftX - 35, y + 4);
         }
 
+        // Draw elevator shaft
         ctx.strokeStyle = '#999';
         ctx.lineWidth = 2;
         ctx.strokeRect(shaftX, 20, shaftWidth, height - 40);
 
         let currentFloor = this.elevator.currentFloor;
 
+        // Draw elevator box
         const elevatorY = height - 20 - ((currentFloor - 1) * floorHeight) - floorHeight + 8;
         ctx.fillStyle = this.color;
         ctx.fillRect(shaftX + 4, elevatorY, shaftWidth - 8, floorHeight - 16);
 
+        // Draw direction arrow
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 16px sans-serif';
-        let arrow = '●';
+        let arrow = '◆';
         if (this.elevator.direction === 'UP') {
             arrow = '↑';
         } else if (this.elevator.direction === 'DOWN') {
@@ -61,7 +65,39 @@ class ElevatorVisualizer {
         ctx.fillText(arrow, shaftX + shaftWidth / 2, elevatorY + floorHeight / 2 + 2);
         ctx.textAlign = 'left';
 
-    
+        // Draw passengers INSIDE elevator (onboard)
+        if (this.elevator.onboardQueue && this.elevator.onboardQueue.length > 0) {
+            const onboardCount = this.elevator.onboardQueue.length;
+            const guestRadius = 4;
+            const spacing = 8;
+            const startX = shaftX + 8;
+            const startY = elevatorY + floorHeight - 20;
+            const maxPerRow = 4;
+
+            for (let i = 0; i < Math.min(onboardCount, 12); i++) {
+                const row = Math.floor(i / maxPerRow);
+                const col = i % maxPerRow;
+                const xPos = startX + (col * spacing);
+                const yPos = startY + (row * spacing);
+
+                // Draw onboard guest (blue)
+                ctx.fillStyle = '#2196F3';
+                ctx.beginPath();
+                ctx.arc(xPos, yPos, guestRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#1976D2';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            if (onboardCount > 12) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.fillText(`+${onboardCount - 12}`, startX + (maxPerRow * spacing) + 2, startY + 5);
+            }
+        }
+
+        // Draw waiting passengers on floors (pickup queue)
         const floorCounts = new Map();
         this.requestSteps.forEach((steps, floor) => {
             floorCounts.set(floor, steps.length);
@@ -82,7 +118,7 @@ class ElevatorVisualizer {
                 const xPos = startX + (col * horizontalSpacing);
                 const yPos = floorY - 15 + (row * verticalSpacing);
 
-                // Draw guest as filled circle with outline
+                // Draw waiting guest (orange)
                 ctx.fillStyle = '#FF5722';
                 ctx.beginPath();
                 ctx.arc(xPos, yPos, guestRadius, 0, Math.PI * 2);
@@ -111,13 +147,11 @@ class ElevatorVisualizer {
         if (this.requestSteps.has(floor)) {
             const steps = this.requestSteps.get(floor);
             if (steps.length > 0) {
-                // Serve the oldest request (FIFO)
                 const requestStep = steps.shift();
                 const waitTime = currentStep - requestStep;
                 this.waitTimes.push(waitTime);
                 this.servedCount++;
 
-                // Remove floor from map if no more requests
                 if (steps.length === 0) {
                     this.requestSteps.delete(floor);
                 }
@@ -152,18 +186,17 @@ class ElevatorVisualizer {
 
         const result = this.elevator.step();
 
-        // Track each served request
         if (result.served) {
             this.trackServed(this.elevator.currentFloor, this.elevator.stepCount);
         }
 
-        // Draw after step
         this.draw();
 
-        // Check if elevator has requests (support different elevator types)
         let hasRequests = false;
-        if (this.elevator.requestQueue !== undefined) {
-            // SCAN, FCFS, or SSTF - all use requestQueue
+        if (this.elevator.pickupQueue !== undefined) {
+            hasRequests = this.elevator.pickupQueue.length > 0 ||
+                this.elevator.onboardQueue.length > 0;
+        } else if (this.elevator.requestQueue !== undefined) {
             hasRequests = this.elevator.requestQueue.length > 0;
         }
 
@@ -196,67 +229,68 @@ class ElevatorVisualizer {
 
 const ScenarioGenerator = {
     baseline: (numFloors = 10) => {
-        // BALANCED: Random requests across all floors
         const requests = [];
         for (let i = 0; i < 20; i++) {
-            const floor = Math.floor(Math.random() * numFloors) + 1;
-            const direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
-            requests.push({ floor, direction });
+            const pickup = Math.floor(Math.random() * numFloors) + 1;
+            let destination = Math.floor(Math.random() * numFloors) + 1;
+            while (destination === pickup) {
+                destination = Math.floor(Math.random() * numFloors) + 1;
+            }
+            requests.push({ pickup, destination });
         }
 
         return {
             requests,
             description: '⚖️ Balanced Random Traffic',
-            detail: '20 random requests. Baseline comparison ',
-            pattern: 'random' // For continuous mode
+            detail: '20 random requests. Baseline comparison',
+            pattern: 'random'
         };
     },
 
     rushhour: (numFloors = 10) => {
-        // BUILDING RUSH WITH STRAGGLERS: Dense cluster at bottom, continuous arrivals at top
         const requests = [];
 
-        // Initial burst: Heavy traffic at floors 1-3 (10 requests)
-        const bottomFloors = [1, 1, 2, 2, 2, 3, 3, 1, 2, 3];
-        bottomFloors.forEach(floor => {
-            requests.push({ floor, direction: 'UP' });
-        });
+        for (let i = 0; i < 10; i++) {
+            const pickup = Math.floor(Math.random() * 3) + 1;
+            const destination = Math.floor(Math.random() * 4) + 7;
+            requests.push({ pickup, destination });
+        }
 
-        // Add a few mid-level requests
-        requests.push({ floor: 5, direction: 'UP' });
-        requests.push({ floor: 6, direction: 'DOWN' });
+        requests.push({ pickup: 5, destination: 9 });
+        requests.push({ pickup: 6, destination: 2 });
 
         return {
             requests,
-            description: '🏢 Building Rush with Stragglers',
-            detail: 'Dense cluster at floors 1-3, then continuous arrivals at 8-10. ',
+            description: '🏢 Building Rush',
+            detail: 'Dense cluster at floors 1-3 going up. Tests morning commute pattern.',
             pattern: 'rushhour'
         };
     },
 
     floorhogging: () => {
-        // FLOOR HOGGING: Multiple requests to same popular floors
         const requests = [];
 
-        // Floor 1 (Lobby) - 5 requests
         for (let i = 0; i < 5; i++) {
-            requests.push({ floor: 1, direction: 'UP' });
+            const destination = Math.floor(Math.random() * 5) + 5;
+            requests.push({ pickup: 1, destination });
         }
 
-        // Floor 5 (Popular Office) - 7 requests
         for (let i = 0; i < 7; i++) {
-            requests.push({ floor: 5, direction: Math.random() < 0.5 ? 'UP' : 'DOWN' });
+            const isGoingUp = Math.random() < 0.5;
+            const destination = isGoingUp
+                ? Math.floor(Math.random() * 3) + 8
+                : Math.floor(Math.random() * 3) + 1;
+            requests.push({ pickup: 5, destination });
         }
 
-        // Scattered requests on other floors - 3 requests
-        requests.push({ floor: 3, direction: 'UP' });
-        requests.push({ floor: 8, direction: 'DOWN' });
-        requests.push({ floor: 10, direction: 'DOWN' });
+        requests.push({ pickup: 3, destination: 7 });
+        requests.push({ pickup: 8, destination: 2 });
+        requests.push({ pickup: 10, destination: 4 });
 
         return {
             requests,
             description: '🏢 Floor Hogging',
-            detail: 'Multiple requests to popular floors',
+            detail: 'Multiple requests to popular floors: 5x floor 1 (lobby), 7x floor 5 (office), 3x others.',
             pattern: 'floorhogging'
         };
     }
@@ -266,7 +300,7 @@ let visualizers = {};
 let updateInterval = null;
 let continuousMode = false;
 let continuousInterval = null;
-let currentScenarioPattern = 'random'; // Track current scenario for continuous mode
+let currentScenarioPattern = 'random';
 
 document.addEventListener('DOMContentLoaded', () => {
     const numFloors = 10;
@@ -307,7 +341,7 @@ function runScenario(scenarioName) {
     stopContinuous();
 
     const scenario = ScenarioGenerator[scenarioName](10);
-    currentScenarioPattern = scenario.pattern || 'random'; // Store pattern for continuous mode
+    currentScenarioPattern = scenario.pattern || 'random';
 
     document.getElementById('scenarioDescription').innerHTML = `
         <h4>${scenario.description}</h4>
@@ -317,14 +351,14 @@ function runScenario(scenarioName) {
     Object.values(visualizers).forEach(v => v.reset());
 
     scenario.requests.forEach(req => {
-        visualizers.sstf.elevator.addRequest(req.floor);
-        visualizers.sstf.trackRequest(req.floor, visualizers.sstf.elevator.stepCount);
+        visualizers.sstf.elevator.addRequest(req.pickup, req.destination);
+        visualizers.sstf.trackRequest(req.pickup, visualizers.sstf.elevator.stepCount);
 
-        visualizers.scan.elevator.addRequest(req.floor);
-        visualizers.scan.trackRequest(req.floor, visualizers.scan.elevator.stepCount);
+        visualizers.scan.elevator.addRequest(req.pickup, req.destination);
+        visualizers.scan.trackRequest(req.pickup, visualizers.scan.elevator.stepCount);
 
-        visualizers.fcfs.elevator.addRequest(req.floor);
-        visualizers.fcfs.trackRequest(req.floor, visualizers.fcfs.elevator.stepCount);
+        visualizers.fcfs.elevator.addRequest(req.pickup, req.destination);
+        visualizers.fcfs.trackRequest(req.pickup, visualizers.fcfs.elevator.stepCount);
     });
 
     Object.values(visualizers).forEach(v => v.start());
@@ -337,53 +371,52 @@ function runScenario(scenarioName) {
 }
 
 function addRandomRequests() {
-    const numRequests = Math.floor(Math.random() * 2) + 2; // 2-3 requests
+    const numRequests = Math.floor(Math.random() * 2) + 2;
 
     for (let i = 0; i < numRequests; i++) {
-        let floor, direction;
+        let pickup, destination;
 
-        // Generate requests based on current scenario pattern
         if (currentScenarioPattern === 'rushhour') {
-            // Building rush with stragglers: 70% at top floors, 30% at bottom/middle
             if (Math.random() < 0.7) {
-                // 70% chance: Add straggler at top floors (8-10)
-                floor = Math.floor(Math.random() * 3) + 8;
-                direction = 'DOWN';
+                pickup = Math.floor(Math.random() * 3) + 8;
+                destination = Math.floor(Math.random() * 5) + 1;
             } else {
-                // 30% chance: Add request at bottom/middle
-                floor = Math.floor(Math.random() * 5) + 1;
-                direction = 'UP';
+                pickup = Math.floor(Math.random() * 3) + 1;
+                destination = Math.floor(Math.random() * 4) + 7;
             }
         } else if (currentScenarioPattern === 'floorhogging') {
-            // Floor hogging: Popular floors get most traffic
             const rand = Math.random();
             if (rand < 0.6) {
-                // 60% chance: Floor 5 (popular office)
-                floor = 5;
-                direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
+                pickup = 5;
+                destination = Math.random() < 0.5
+                    ? Math.floor(Math.random() * 3) + 8
+                    : Math.floor(Math.random() * 3) + 1;
             } else if (rand < 0.9) {
-                // 30% chance: Floor 1 (lobby)
-                floor = 1;
-                direction = 'UP';
+                pickup = 1;
+                destination = Math.floor(Math.random() * 5) + 5;
             } else {
-                // 10% chance: Random other floor
-                floor = Math.floor(Math.random() * 10) + 1;
-                direction = floor <= 5 ? 'UP' : 'DOWN';
+                pickup = Math.floor(Math.random() * 10) + 1;
+                destination = Math.floor(Math.random() * 10) + 1;
+                while (destination === pickup) {
+                    destination = Math.floor(Math.random() * 10) + 1;
+                }
             }
         } else {
-            // Random/baseline: Truly random
-            floor = Math.floor(Math.random() * 10) + 1;
-            direction = Math.random() < 0.5 ? 'UP' : 'DOWN';
+            pickup = Math.floor(Math.random() * 10) + 1;
+            destination = Math.floor(Math.random() * 10) + 1;
+            while (destination === pickup) {
+                destination = Math.floor(Math.random() * 10) + 1;
+            }
         }
 
-        visualizers.sstf.elevator.addRequest(floor);
-        visualizers.sstf.trackRequest(floor, visualizers.sstf.elevator.stepCount);
+        visualizers.sstf.elevator.addRequest(pickup, destination);
+        visualizers.sstf.trackRequest(pickup, visualizers.sstf.elevator.stepCount);
 
-        visualizers.scan.elevator.addRequest(floor);
-        visualizers.scan.trackRequest(floor, visualizers.scan.elevator.stepCount);
+        visualizers.scan.elevator.addRequest(pickup, destination);
+        visualizers.scan.trackRequest(pickup, visualizers.scan.elevator.stepCount);
 
-        visualizers.fcfs.elevator.addRequest(floor);
-        visualizers.fcfs.trackRequest(floor, visualizers.fcfs.elevator.stepCount);
+        visualizers.fcfs.elevator.addRequest(pickup, destination);
+        visualizers.fcfs.trackRequest(pickup, visualizers.fcfs.elevator.stepCount);
     }
 }
 
@@ -391,7 +424,7 @@ function startContinuous() {
     if (!continuousInterval) {
         continuousInterval = setInterval(() => {
             addRandomRequests();
-        }, 2000); // Every 2 seconds
+        }, 2000);
     }
 }
 
@@ -444,10 +477,10 @@ function updateMetrics() {
         document.getElementById(`floor-${alg}`).textContent = elevator.currentFloor;
         document.getElementById(`direction-${alg}`).textContent = elevator.direction;
 
-        // Get pending count based on elevator type
         let pending = 0;
-        if (elevator.requestQueue !== undefined) {
-            // SCAN, FCFS, or SSTF - all use requestQueue
+        if (elevator.pickupQueue !== undefined) {
+            pending = elevator.pickupQueue.length + elevator.onboardQueue.length;
+        } else if (elevator.requestQueue !== undefined) {
             pending = elevator.requestQueue.length;
         }
         document.getElementById(`pending-${alg}`).textContent = pending;

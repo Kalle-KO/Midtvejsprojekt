@@ -3,89 +3,144 @@ class SstfElevator {
         this.numFloors = numFloors;
         this.currentFloor = 1;
         this.direction = 'IDLE';
-        this.requestQueue = [];
+        this.pickupQueue = [];
+        this.onboardQueue = [];
+        this.nextRequestId = 0;
         this.totalMoves = 0;
         this.stepCount = 0;
     }
 
-    addRequest(floor) {
-        if (floor >= 1 && floor <= this.numFloors) {
-            this.requestQueue.push(floor);
+    addRequest(pickup, destination) {
+        if (pickup === destination) {
+            console.warn(`Invalid request: pickup and destination are the same (floor ${pickup})`);
+            return false;
         }
+
+        if (pickup < 1 || pickup > this.numFloors ||
+            destination < 1 || destination > this.numFloors) {
+            console.warn(`Invalid request: floors out of range`);
+            return false;
+        }
+
+        this.pickupQueue.push({
+            floor: pickup,
+            destination: destination,
+            requestId: this.nextRequestId++
+        });
+        return true;
     }
 
-    findClosestFloor() {
-        if (this.requestQueue.length === 0) return null;
-
-        let closestFloor = this.requestQueue[0];
-        let minDistance = Math.abs(this.currentFloor - closestFloor);
-
-        for (let i = 1; i < this.requestQueue.length; i++) {
-            const floor = this.requestQueue[i];
-            const distance = Math.abs(this.currentFloor - floor);
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestFloor = floor;
-            }
+    findClosestRequest() {
+        if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
+            return null;
         }
 
-        return closestFloor;
+        let closestRequest = null;
+        let minDistance = Infinity;
+
+        this.pickupQueue.forEach(req => {
+            const distance = Math.abs(this.currentFloor - req.floor);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestRequest = {
+                    floor: req.floor,
+                    type: 'pickup',
+                    destination: req.destination,
+                    requestId: req.requestId
+                };
+            }
+        });
+
+        this.onboardQueue.forEach(req => {
+            const distance = Math.abs(this.currentFloor - req.destination);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestRequest = {
+                    floor: req.destination,
+                    type: 'dropoff',
+                    requestId: req.requestId
+                };
+            }
+        });
+
+        return closestRequest;
     }
 
     step() {
         this.stepCount++;
 
-        // No requests - idle
-        if (this.requestQueue.length === 0) {
+        if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
             this.direction = 'IDLE';
             return {
                 floor: this.currentFloor,
                 action: 'idle',
                 direction: 'idle',
-                remainingRequests: [],
+                remainingPickups: [],
+                remainingOnboard: [],
                 served: false
             };
         }
 
-        // Check if current floor has a request - serve it
-        const currentFloorIndex = this.requestQueue.indexOf(this.currentFloor);
-        if (currentFloorIndex !== -1) {
-            // Serve one guest
-            this.requestQueue.splice(currentFloorIndex, 1);
+        let served = false;
+        let servedType = null;
 
-            // After serving, return - don't move in same step
+        const dropoffIdx = this.onboardQueue.findIndex(r => r.destination === this.currentFloor);
+        if (dropoffIdx !== -1) {
+            this.onboardQueue.splice(dropoffIdx, 1);
+            served = true;
+            servedType = 'dropoff';
+        }
+
+        if (!served) {
+            const pickupIdx = this.pickupQueue.findIndex(r => r.floor === this.currentFloor);
+            if (pickupIdx !== -1) {
+                const req = this.pickupQueue.splice(pickupIdx, 1)[0];
+                this.onboardQueue.push({
+                    destination: req.destination,
+                    requestId: req.requestId
+                });
+                served = true;
+                servedType = 'pickup';
+            }
+        }
+
+        if (served) {
+            if (this.pickupQueue.length === 0 && this.onboardQueue.length === 0) {
+                this.direction = 'IDLE';
+            }
+
             return {
                 floor: this.currentFloor,
                 action: 'serviced',
-                direction: this.requestQueue.length === 0 ? 'idle' : this.direction,
-                remainingRequests: [...this.requestQueue],
-                served: true
+                direction: this.direction.toLowerCase(),
+                remainingPickups: [...this.pickupQueue],
+                remainingOnboard: [...this.onboardQueue],
+                served: true,
+                servedType: servedType
             };
         }
 
-        // Find closest requested floor
-        const closestFloor = this.findClosestFloor();
+        const closest = this.findClosestRequest();
 
-        if (closestFloor === null) {
+        if (!closest) {
             this.direction = 'IDLE';
             return {
                 floor: this.currentFloor,
                 action: 'idle',
                 direction: 'idle',
-                remainingRequests: [],
+                remainingPickups: [],
+                remainingOnboard: [],
                 served: false
             };
         }
 
-        // Move one step toward closest floor
-        if (closestFloor > this.currentFloor) {
+        if (closest.floor > this.currentFloor) {
             this.currentFloor++;
             this.direction = 'UP';
-        } else if (closestFloor < this.currentFloor) {
+        } else if (closest.floor < this.currentFloor) {
             this.currentFloor--;
             this.direction = 'DOWN';
         } else {
-            // Should not happen (we already checked current floor)
             this.direction = 'IDLE';
         }
 
@@ -95,7 +150,8 @@ class SstfElevator {
             floor: this.currentFloor,
             action: 'moving',
             direction: this.direction.toLowerCase(),
-            remainingRequests: [...this.requestQueue],
+            remainingPickups: [...this.pickupQueue],
+            remainingOnboard: [...this.onboardQueue],
             served: false
         };
     }
@@ -103,12 +159,17 @@ class SstfElevator {
     reset() {
         this.currentFloor = 1;
         this.direction = 'IDLE';
-        this.requestQueue = [];
+        this.pickupQueue = [];
+        this.onboardQueue = [];
+        this.nextRequestId = 0;
         this.totalMoves = 0;
         this.stepCount = 0;
     }
 
     get requests() {
-        return new Set(this.requestQueue);
+        const allFloors = new Set();
+        this.pickupQueue.forEach(req => allFloors.add(req.floor));
+        this.onboardQueue.forEach(req => allFloors.add(req.destination));
+        return allFloors;
     }
 }
