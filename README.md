@@ -10,7 +10,7 @@ Datastrukturer og Algoritmer
 This project compares three elevator scheduling algorithms:
 - **FCFS (First Come First Serve)** - Processes requests in order
 - **SCAN** - Sweeps up and down serving requests (this is the commonly used elevator algorithm aoround the world)
-- **Rush Hour Optimization** - Prioritizes directional batching
+- **SSTF (Shortest Seek Time First)** Greedy Algorithm - Picks the nearest requests
 
 ## How to Run
 
