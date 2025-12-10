@@ -1,4 +1,4 @@
-# The Elevator Simulator :)
+# The Elevator Simulator 
 
 Midtvejsprojekt 2025
 Datastrukturer og Algoritmer
@@ -8,7 +8,7 @@ Datastrukturer og Algoritmer
 ## Description
 
 This project compares three elevator scheduling algorithms:
-- **FCFS (First Come First Serve)** - Processes requests in order
+- **FCFS (First Come First Serve)** - Processes requests in order (optimized version)
 - **SCAN** - Sweeps up and down serving requests (this is the commonly used elevator algorithm aoround the world)
 - **SSTF (Shortest Seek Time First)** Greedy Algorithm - Picks the nearest requests
 
