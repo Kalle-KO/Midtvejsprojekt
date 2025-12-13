@@ -184,8 +184,8 @@ class ElevatorVisualizer {
     animate() {
         if (!this.isRunning) return;
 
-        // Check if in 100 moves test and if reached 100 moves - stop immediately
-        if (this.in100MovesTest && this.elevator.totalMoves >= 100) {
+        // Check if in 100 moves test and if reached 100 served requests - stop immediately
+        if (this.in100MovesTest && this.servedCount >= 100) {
             this.isRunning = false;
             this.in100MovesTest = false;
             return;
@@ -193,16 +193,16 @@ class ElevatorVisualizer {
 
         const result = this.elevator.step();
 
-        // Check again after the step in case we just reached 100
-        if (this.in100MovesTest && this.elevator.totalMoves >= 100) {
-            this.isRunning = false;
-            this.in100MovesTest = false;
-            this.draw();
-            return;
-        }
-
         if (result.served) {
             this.trackServed(this.elevator.currentFloor, this.elevator.stepCount);
+
+            // Check again after serving in case we just reached 100
+            if (this.in100MovesTest && this.servedCount >= 100) {
+                this.isRunning = false;
+                this.in100MovesTest = false;
+                this.draw();
+                return;
+            }
         }
 
         this.draw();
@@ -608,10 +608,10 @@ function run100MovesTest() {
     guestsSpawned = 0;
 
     document.getElementById('scenarioDescription').innerHTML = `
-        <h4>📊 100 Moves Data Collection</h4>
-        <p>Running baseline test until each elevator completes exactly 100 moves</p>
+        <h4>📊 100 Requests Served Data Collection</h4>
+        <p>Running baseline test until each elevator serves exactly 100 requests</p>
         <p style="margin-top: 8px; color: #666; font-size: 13px;">
-            New requests will be added automatically until all elevators reach 100 moves
+            New requests will be added automatically until all elevators serve 100 requests
         </p>
     `;
 
@@ -652,28 +652,28 @@ function run100MovesTest() {
     }
 
     movesCheckInterval = setInterval(() => {
-        const sstfMoves = visualizers.sstf.elevator.totalMoves;
-        const scanMoves = visualizers.scan.elevator.totalMoves;
-        const fcfsMoves = visualizers.fcfs.elevator.totalMoves;
+        const sstfServed = visualizers.sstf.servedCount;
+        const scanServed = visualizers.scan.servedCount;
+        const fcfsServed = visualizers.fcfs.servedCount;
 
-        // Stop individual elevators when they reach 100
-        if (sstfMoves >= 100 && !elevatorsCompleted.sstf) {
+        // Stop individual elevators when they reach 100 served requests
+        if (sstfServed >= 100 && !elevatorsCompleted.sstf) {
             elevatorsCompleted.sstf = true;
             visualizers.sstf.stop();
             visualizers.sstf.in100MovesTest = false;
         }
-        if (scanMoves >= 100 && !elevatorsCompleted.scan) {
+        if (scanServed >= 100 && !elevatorsCompleted.scan) {
             elevatorsCompleted.scan = true;
             visualizers.scan.stop();
             visualizers.scan.in100MovesTest = false;
         }
-        if (fcfsMoves >= 100 && !elevatorsCompleted.fcfs) {
+        if (fcfsServed >= 100 && !elevatorsCompleted.fcfs) {
             elevatorsCompleted.fcfs = true;
             visualizers.fcfs.stop();
             visualizers.fcfs.in100MovesTest = false;
         }
 
-        // Check if all have reached 100 moves
+        // Check if all have served 100 requests
         if (elevatorsCompleted.sstf && elevatorsCompleted.scan && elevatorsCompleted.fcfs) {
             clearInterval(movesCheckInterval);
             movesCheckInterval = null;
@@ -684,7 +684,7 @@ function run100MovesTest() {
             const scanMetrics = visualizers.scan.getMetrics();
             const fcfsMetrics = visualizers.fcfs.getMetrics();
 
-            console.log('=== 100 MOVES TEST RESULTS ===');
+            console.log('=== 100 REQUESTS SERVED TEST RESULTS ===');
             console.log('SSTF:', {
                 totalMoves: sstfMetrics.totalMoves,
                 avgWait: sstfMetrics.avgWait,
@@ -705,12 +705,12 @@ function run100MovesTest() {
             });
 
             document.getElementById('scenarioDescription').innerHTML = `
-                <h4>✅ 100 Moves Test Complete</h4>
-                <p>All elevators have completed 100 moves. Check console (F12) for detailed results.</p>
+                <h4>✅ 100 Requests Served Test Complete</h4>
+                <p>All elevators have served 100 requests. Check console (F12) for detailed results.</p>
                 <p style="margin-top: 8px; color: #333; font-size: 13px;">
-                    <strong>SSTF:</strong> ${sstfMetrics.totalMoves} moves, ${sstfMetrics.served} served, Avg Wait: ${sstfMetrics.avgWait}, Max Wait: ${sstfMetrics.maxWait}<br>
-                    <strong>SCAN:</strong> ${scanMetrics.totalMoves} moves, ${scanMetrics.served} served, Avg Wait: ${scanMetrics.avgWait}, Max Wait: ${scanMetrics.avgWait}<br>
-                    <strong>FCFS:</strong> ${fcfsMetrics.totalMoves} moves, ${fcfsMetrics.served} served, Avg Wait: ${fcfsMetrics.avgWait}, Max Wait: ${fcfsMetrics.maxWait}
+                    <strong>SSTF:</strong> ${sstfMetrics.served} served, ${sstfMetrics.totalMoves} moves, Avg Wait: ${sstfMetrics.avgWait}, Max Wait: ${sstfMetrics.maxWait}<br>
+                    <strong>SCAN:</strong> ${scanMetrics.served} served, ${scanMetrics.totalMoves} moves, Avg Wait: ${scanMetrics.avgWait}, Max Wait: ${scanMetrics.maxWait}<br>
+                    <strong>FCFS:</strong> ${fcfsMetrics.served} served, ${fcfsMetrics.totalMoves} moves, Avg Wait: ${fcfsMetrics.avgWait}, Max Wait: ${fcfsMetrics.maxWait}
                 </p>
             `;
 
@@ -727,26 +727,26 @@ function run100MovesTest() {
             (visualizers.fcfs.elevator.pickupQueue.length + visualizers.fcfs.elevator.onboardQueue.length);
 
         // Add 2-3 new requests only if an elevator's queue is low
-        if ((sstfPending < 5 && sstfMoves < 100 && !elevatorsCompleted.sstf) ||
-            (scanPending < 5 && scanMoves < 100 && !elevatorsCompleted.scan) ||
-            (fcfsPending < 5 && fcfsMoves < 100 && !elevatorsCompleted.fcfs)) {
+        if ((sstfPending < 5 && sstfServed < 100 && !elevatorsCompleted.sstf) ||
+            (scanPending < 5 && scanServed < 100 && !elevatorsCompleted.scan) ||
+            (fcfsPending < 5 && fcfsServed < 100 && !elevatorsCompleted.fcfs)) {
 
             const numRequests = Math.floor(Math.random() * 2) + 2; // 2-3 new requests
 
             for (let i = 0; i < numRequests; i++) {
                 const req = currentScenario.generator();
 
-                if (sstfPending < 5 && sstfMoves < 100 && !elevatorsCompleted.sstf) {
+                if (sstfPending < 5 && sstfServed < 100 && !elevatorsCompleted.sstf) {
                     visualizers.sstf.elevator.addRequest(req.pickup, req.destination);
                     visualizers.sstf.trackRequest(req.pickup, visualizers.sstf.elevator.stepCount);
                 }
 
-                if (scanPending < 5 && scanMoves < 100 && !elevatorsCompleted.scan) {
+                if (scanPending < 5 && scanServed < 100 && !elevatorsCompleted.scan) {
                     visualizers.scan.elevator.addRequest(req.pickup, req.destination);
                     visualizers.scan.trackRequest(req.pickup, visualizers.scan.elevator.stepCount);
                 }
 
-                if (fcfsPending < 5 && fcfsMoves < 100 && !elevatorsCompleted.fcfs) {
+                if (fcfsPending < 5 && fcfsServed < 100 && !elevatorsCompleted.fcfs) {
                     visualizers.fcfs.elevator.addRequest(req.pickup, req.destination);
                     visualizers.fcfs.trackRequest(req.pickup, visualizers.fcfs.elevator.stepCount);
                 }
